@@ -41,6 +41,12 @@ const userSchema = new mongoose.Schema(
   default: 0
 },
 
+wishlist: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Wishlist"
+  }
+],
 
     isVerified: {
       type: Boolean,

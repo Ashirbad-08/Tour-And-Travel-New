@@ -16,7 +16,7 @@ export const createPackage = asyncHandler(async (req, res) => {
     category,
     includes,
     excludes
-  } = req.body;
+  } = req.body;3
 
   // ✅ Validate required text fields
   if (

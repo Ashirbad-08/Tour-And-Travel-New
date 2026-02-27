@@ -2,68 +2,6 @@ import mongoose from "mongoose";
 import asyncHandler from "../middleware/asyncHandler.js"
 import User from "../model/user.model.js";
 import Package from "../model/package.model.js";
-// update the loyalty points of a user
-// export const addLoyaltyPoints = asyncHandler(async (req, res) => {
-
-//   const { userId, packageId, points } = req.body;
-
-//   const numericPoints = Number(points);
-
-//   // Basic validation
-//   if (!userId || !packageId || !numericPoints || numericPoints <= 0) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "userId, packageId and valid points are required"
-//     });
-//   }
-
-//   // Validate ObjectIds
-//   if (
-//     !mongoose.Types.ObjectId.isValid(userId) ||
-//     !mongoose.Types.ObjectId.isValid(packageId)
-//   ) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Invalid userId or packageId"
-//     });
-//   }
-
-//   //  Check if package exists
-//   const packageExists = await Package.findById(packageId);
-
-//   if (!packageExists) {
-//     return res.status(404).json({
-//       success: false,
-//       message: "Package not found"
-//     });
-//   }
-
-//   //  Check if user exists
-//   const userExists = await User.findById(userId);
-
-//   if (!userExists) {
-//     return res.status(404).json({
-//       success: false,
-//       message: "User not found"
-//     });
-//   }
-
-//   //  Add loyalty points
-//   userExists.loyaltyPoints += numericPoints;
-//   await userExists.save();
-
-//   res.status(200).json({
-//     success: true,
-//     message: "Loyalty points added successfully",
-//     data: {
-//       userId: userExists._id,
-//       packageId,
-//       totalPoints: userExists.loyaltyPoints
-//     }
-//   });
-
-// });
-
 
 
 export const addLoyaltyPoints = asyncHandler(async (req, res) => {
