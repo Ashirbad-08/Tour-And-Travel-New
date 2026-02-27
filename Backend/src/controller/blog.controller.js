@@ -1,5 +1,6 @@
 import slugify from 'slugify';
-import POST_STATUS from '../config/constants.js';
+import constants from '../config/constants.js';
+const { POST_STATUS, PAGINATION } = constants;
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { Blog } from '../model/blog.model.js';
 import { Category } from '../model/category.model.js';
@@ -210,6 +211,12 @@ export const getPostBySlug = asyncHandler(async (req, res) => {
  * @access  Private (Admin/Editor)
  */
 export const createPost = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json(
+      ApiResponse.unauthorized('Authentication required. Please log in.')
+    );
+  }
+
   const {
     title,
     content_markdown,
@@ -288,6 +295,12 @@ export const createPost = asyncHandler(async (req, res) => {
  * @access  Private (Admin/Editor)
  */
 export const updatePost = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json(
+      ApiResponse.unauthorized('Authentication required. Please log in.')
+    );
+  }
+
   const { id } = req.params;
   const updateData = { ...req.body };
 
@@ -407,6 +420,12 @@ export const deletePost = asyncHandler(async (req, res) => {
  * @access  Private (Admin/Editor)
  */
 export const getAllPosts = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json(
+      ApiResponse.unauthorized('Authentication required. Please log in.')
+    );
+  }
+
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -468,6 +487,11 @@ export const getAllPosts = asyncHandler(async (req, res) => {
  * @access  Private (Admin/Editor)
  */
 export const getPostForEdit = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json(
+      ApiResponse.unauthorized('Authentication required. Please log in.')
+    );
+  }
   const { id } = req.params;
 
   const post = await Blog.findById(id)
@@ -498,6 +522,11 @@ export const getPostForEdit = asyncHandler(async (req, res) => {
  * @access  Private (Admin/Editor)
  */
 export const publishPost = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json(
+      ApiResponse.unauthorized('Authentication required. Please log in.')
+    );
+  }
   const { id } = req.params;
 
   const post = await Blog.findById(id);

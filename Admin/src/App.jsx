@@ -15,6 +15,7 @@ import Traveller from "./pages/Traveller";
 import Guides from "./pages/Guides";
 import Gallery from "./pages/Gallery";
 import Blog from "./pages/Blog";
+import AdminProfile from "./pages/AdminProfile";
 import Coupons from "./pages/Coupons";
 import Feedback from "./pages/Feedback";
 // import Hotels from './pages/Hotels';
@@ -59,6 +60,7 @@ function App() {
                 <Route path="/guides" element={<Guides />} />
                 <Route path="/gallery" element={<Gallery />} />
                 <Route path="/blog" element={<Blog />} />
+                <Route path="/profile" element={<AdminProfile />} />
                 <Route path="/coupons" element={<Coupons />} />
                 <Route path="/feedback" element={<Feedback />} />
                 <Route path="/Enquiry" element={<Enquiry />} />

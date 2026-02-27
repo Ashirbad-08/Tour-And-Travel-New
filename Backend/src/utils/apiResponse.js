@@ -1,4 +1,5 @@
-import STATUS_CODES from '../config/constants.js';
+import constants from '../config/constants.js';
+const { STATUS_CODES } = constants;
 
 class ApiResponse {
   constructor(statusCode, data, message = 'Success') {

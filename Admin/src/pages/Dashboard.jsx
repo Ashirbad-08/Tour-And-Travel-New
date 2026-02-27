@@ -46,10 +46,10 @@ import "../styles/Dashboard.css";
    HELPERS — calendar generation & seeded random
    ═══════════════════════════════════════════════ */
 const MONTH_NAMES = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
-const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // Deterministic pseudo-random from a seed so same date always gives same numbers
 function seededRand(seed) {
@@ -200,7 +200,7 @@ const Dashboard = () => {
       // Show hourly breakdown (8 AM – 6 PM)
       const seed = calYear * 10000 + (calMonth + 1) * 100 + selectedDate;
       const rng = seededRand(seed + 999);
-      return ["8AM","9AM","10AM","11AM","12PM","1PM","2PM","3PM","4PM","5PM","6PM"].map(h => ({
+      return ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM", "4PM", "5PM", "6PM"].map(h => ({
         day: h, revenue: Math.round(40 + rng() * 160),
       }));
     }
@@ -213,13 +213,13 @@ const Dashboard = () => {
       return days;
     }
     // Month — show weekly totals
-    const weekLabels = ["Wk 1","Wk 2","Wk 3","Wk 4","Wk 5"];
+    const weekLabels = ["Wk 1", "Wk 2", "Wk 3", "Wk 4", "Wk 5"];
     const result = [];
     let wk = 0;
     for (let d = 1; d <= daysInMonth; d += 7) {
       const end = Math.min(d + 6, daysInMonth);
       const s = sumMetrics(calYear, calMonth, d, end);
-      result.push({ day: weekLabels[wk] || `Wk ${wk+1}`, revenue: s.earnings });
+      result.push({ day: weekLabels[wk] || `Wk ${wk + 1}`, revenue: s.earnings });
       wk++;
     }
     return result;
@@ -333,7 +333,7 @@ const Dashboard = () => {
           {/* ── STATS ROW ── */}
           <div className="db-stats-header">
             <div className="period-info">
-              <span className="period-label"><FiCalendar size={14} style={{marginRight:4, verticalAlign:'middle'}} /> {periodLabel}</span>
+              <span className="period-label"><FiCalendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> {periodLabel}</span>
               <span className="period-mode">{analysisMode} view</span>
             </div>
             <div className="analysis-toggle">
@@ -489,7 +489,7 @@ const Dashboard = () => {
                     <span className="pkg-tag">{p.title}</span>
                   </div>
                   <h5>{p.dest}</h5>
-                  <span className="pkg-dur"><FiClock size={13} style={{marginRight:4, verticalAlign:'middle'}} /> {p.dur}</span>
+                  <span className="pkg-dur"><FiClock size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> {p.dur}</span>
                   <div className="pkg-foot">
                     <div>
                       <b className="pkg-price">{p.price}</b>
@@ -583,7 +583,7 @@ const Dashboard = () => {
             <div className="db-card-head">
               <h4>Upcoming Trips</h4>
               <button className="plus-btn" onClick={() => setShowTripForm(!showTripForm)}>
-                {showTripForm ? <span style={{fontSize:18,lineHeight:1}}>×</span> : <FiPlus size={16} />}
+                {showTripForm ? <span style={{ fontSize: 18, lineHeight: 1 }}>×</span> : <FiPlus size={16} />}
               </button>
             </div>
 
@@ -592,23 +592,23 @@ const Dashboard = () => {
                 <input
                   placeholder="Trip name (e.g. Beach Escape)"
                   value={tripForm.tag}
-                  onChange={e => setTripForm({...tripForm, tag: e.target.value})}
+                  onChange={e => setTripForm({ ...tripForm, tag: e.target.value })}
                 />
                 <input
                   placeholder="Location (e.g. Bali, Indonesia)"
                   value={tripForm.loc}
-                  onChange={e => setTripForm({...tripForm, loc: e.target.value})}
+                  onChange={e => setTripForm({ ...tripForm, loc: e.target.value })}
                 />
                 <div className="trip-form-row">
                   <input
                     placeholder="Date (e.g. 5 - 10 Aug)"
                     value={tripForm.date}
-                    onChange={e => setTripForm({...tripForm, date: e.target.value})}
+                    onChange={e => setTripForm({ ...tripForm, date: e.target.value })}
                   />
                   <input
                     placeholder="Users (e.g. +5)"
                     value={tripForm.users}
-                    onChange={e => setTripForm({...tripForm, users: e.target.value})}
+                    onChange={e => setTripForm({ ...tripForm, users: e.target.value })}
                   />
                 </div>
                 <button className="trip-form-submit" onClick={handleAddTrip}>Add Trip</button>
@@ -623,8 +623,8 @@ const Dashboard = () => {
                     <span className="trip-tag">{t.tag}</span>
                     <h5>{t.loc}</h5>
                     <div className="trip-meta">
-                      <span><FiUser size={13} style={{marginRight:2, verticalAlign:'middle'}} /> {t.users}</span>
-                      <span><FiCalendar size={13} style={{marginRight:2, verticalAlign:'middle'}} /> {t.date}</span>
+                      <span><FiUser size={13} style={{ marginRight: 2, verticalAlign: 'middle' }} /> {t.users}</span>
+                      <span><FiCalendar size={13} style={{ marginRight: 2, verticalAlign: 'middle' }} /> {t.date}</span>
                     </div>
                   </div>
                 </div>

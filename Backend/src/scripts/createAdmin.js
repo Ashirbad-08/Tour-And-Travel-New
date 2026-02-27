@@ -2,7 +2,13 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 
-dotenv.config()
+dotenv.config();
+console.log("MONGODB_URI:", process.env.MONGODB_URI ? "Found" : "Not Found");
+
+if (!process.env.MONGODB_URI) {
+  console.error("MONGODB_URI is not defined in .env file");
+  process.exit(1);
+}
 
 await mongoose.connect(process.env.MONGODB_URI);
 

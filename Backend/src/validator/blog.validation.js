@@ -1,5 +1,7 @@
-import { body } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import customValidators from '../middleware/validation.js';
+import constants from '../config/constants.js';
+const { POST_STATUS } = constants;
 
 const createPostValidation = [
   body('title')

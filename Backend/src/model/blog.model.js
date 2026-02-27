@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import slugify from 'slugify';
-import POST_STATUS from '../config/constants.js';
+import constants from '../config/constants.js';
+const { POST_STATUS } = constants;
 
 const blogSchema = new mongoose.Schema({
   title: {

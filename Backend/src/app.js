@@ -9,9 +9,20 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    return callback(null, origin);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"]
 }));
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -53,8 +64,8 @@ app.use("/api/search", searchPackageRoutes);
 app.use("/api/faqs", faqRoutes);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/reviews", reviewRoutes);
-app.use("/api/globalsearch",globalSearchRoutes);
-app.use("/api/trending",trendingRoutes);
+app.use("/api/globalsearch", globalSearchRoutes);
+app.use("/api/trending", trendingRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use("/api/notifications", notificationRoutes);
 
