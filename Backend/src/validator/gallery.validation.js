@@ -15,9 +15,9 @@ export const galleryValidation = (data) => {
   const schema = Joi.object({
     title: Joi.string().required(),
     location: Joi.string().required(),
+    category: Joi.string().optional(),
     description: Joi.string().optional(),
   });
 
   return schema.validate(data);
 };
-

@@ -1,48 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./Gallery.css";
-// import Navbar from "../components/Navbar";
-
-import img1 from "../assets/images/Gallery1.jpg";
-import img2 from "../assets/images/Gallery2.jpg";
-import img3 from "../assets/images/Gallery3.jpg";
-import img4 from "../assets/images/Gallery4.jpg";
-import img5 from "../assets/images/Gallery5.jpg";
-import img6 from "../assets/images/Gallery6.jpg";
-import img7 from "../assets/images/Gallery7.jpg";
-import img8 from "../assets/images/Gallery8.jpg";
-import img9 from "../assets/images/Gallery9.jpg";
-import img10 from "../assets/images/Gallery10.jpg";
-import img11 from "../assets/images/Gallery11.jpg";
-import img12 from "../assets/images/Gallery12.jpg";
-import img13 from "../assets/images/Gallery13.jpg";
-import img14 from "../assets/images/Gallery14.jpg";
-import img15 from "../assets/images/Gallery15.jpg";
-import img16 from "../assets/images/Gallery16.jpg";
-
-const images = [
-  { src: img1, title: "Uluwatu Cliff Temple, Bali" },
-  { src: img2, title: "Limestone Cliffs & Jungle Coast" },
-  { src: img3, title: "Tikal Ruins, Guatemala" },
-  { src: img4, title: "Mount Bromo Volcano, Indonesia" },
-
-  { src: img5, title: "Uluwatu Cliff Temple, Bali" },
-  { src: img6, title: "Great Wall of China" },
-  { src: img7, title: "Bali Elephant Sanctuary" },
-  { src: img8, title: "Tropical Beach & Palm Trees" },
-
-  { src: img9, title: "Temple of Heaven, Beijing" },
-  { src: img10, title: "Sunset Viewpoint Over Islands" },
-  { src: img11, title: "Atlas Moth on Hand" },
-  { src: img12, title: "Mountain Lake Reflection" },
-
-  { src: img13, title: "Great Wall of China (Mountain Section)" },
-  { src: img14, title: "Hiker at Mountain Summit" },
-  { src: img15, title: "Volcanic Landscape Above Clouds" },
-  { src: img16, title: "Traditional Stone Huts Village" },
-];
 
 export default function Gallery() {
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(null);
+
+  useEffect(() => {
+    const fetchGallery = async () => {
+      try {
+        const res = await fetch('/api/gallery?limit=100');
+        const json = await res.json();
+        const data = json?.data || [];
+        // Flatten all imageUrls into individual gallery items
+        const mapped = [];
+        data.forEach((item) => {
+          if (item.imageUrls && item.imageUrls.length > 0) {
+            item.imageUrls.forEach((url) => {
+              mapped.push({
+                src: url,
+                title: item.title || "Travel Photo",
+              });
+            });
+          }
+        });
+        setImages(mapped);
+      } catch (err) {
+        console.error('Failed to fetch gallery:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGallery();
+  }, []);
 
   const close = () => setActiveIndex(null);
   const prev = () =>
@@ -53,10 +43,6 @@ export default function Gallery() {
   return (
     <>
       <section className="gallery-hero">
-        {/* <div className="nav-section">
-          <Navbar />
-        </div> */}
-
         <div className="gallery-overlay">
           <h1>GALLERY</h1>
           <p>Some pictures from our travels</p>
@@ -65,19 +51,25 @@ export default function Gallery() {
       </section>
 
       <section className="gallery-grid">
-        {images.map((img, index) => (
-          <div
-            className="gallery-item"
-            key={index}
-            onClick={() => setActiveIndex(index)}
-          >
-            <img src={img.src} alt={img.title} />
-            <div className="gallery-hover">
-              <span>⤢</span>
-              <p>{img.title}</p>
+        {loading ? (
+          <p style={{ textAlign: 'center', padding: '3rem', color: '#888', gridColumn: '1 / -1' }}>Loading gallery...</p>
+        ) : images.length === 0 ? (
+          <p style={{ textAlign: 'center', padding: '3rem', color: '#888', gridColumn: '1 / -1' }}>No gallery images found.</p>
+        ) : (
+          images.map((img, index) => (
+            <div
+              className="gallery-item"
+              key={index}
+              onClick={() => setActiveIndex(index)}
+            >
+              <img src={img.src} alt={img.title} />
+              <div className="gallery-hover">
+                <span>⤢</span>
+                <p>{img.title}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </section>
 
       {activeIndex !== null && (

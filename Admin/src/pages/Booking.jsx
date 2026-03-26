@@ -1,15 +1,7 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import "../styles/Booking.css";
-
-import {
-  FiCalendar,
-  FiUsers,
-  FiDollarSign,
-  FiSearch,
-  FiPlus,
-  FiMoreHorizontal,
-} from "react-icons/fi";
-
+import api from "../utils/api";
+import { FiCalendar, FiEye, FiSearch, FiX } from "react-icons/fi";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,8 +13,7 @@ import {
   Legend,
   Filler,
 } from "chart.js";
-
-import { Line, Bar } from "react-chartjs-2";
+import { Bar, Line } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
@@ -35,16 +26,6 @@ ChartJS.register(
   Filler,
 );
 
-/* ✅ SPARK OPTIONS */
-const sparkOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false }, tooltip: { enabled: false } },
-  scales: { x: { display: false }, y: { display: false } },
-  elements: { point: { radius: 0 }, line: { tension: 0.45, borderWidth: 3 } },
-};
-
-/* ✅ OVERVIEW OPTIONS */
 const overviewOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -52,636 +33,529 @@ const overviewOptions = {
     legend: {
       position: "top",
       align: "start",
-      labels: { usePointStyle: true, padding: 25, boxWidth: 8 },
+      labels: { usePointStyle: true, padding: 20, boxWidth: 8 },
     },
-    tooltip: { backgroundColor: "#111827", padding: 12, displayColors: false },
+    tooltip: { backgroundColor: "#111827", padding: 10 },
   },
   interaction: { intersect: false, mode: "index" },
   scales: {
-    x: {
-      grid: { display: false },
-      ticks: { color: "#9ca3af", font: { size: 12 } },
-    },
-    y: {
-      grid: { color: "rgba(0,0,0,0.06)" },
-      ticks: { color: "#9ca3af", font: { size: 12 } },
-    },
+    x: { grid: { display: false }, ticks: { color: "#64748b" } },
+    y: { grid: { color: "rgba(15,23,42,0.08)" }, ticks: { color: "#64748b" } },
   },
+};
+
+const barOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { display: false }, ticks: { color: "#64748b" } },
+    y: { beginAtZero: true, grid: { color: "rgba(15,23,42,0.08)" }, ticks: { color: "#64748b" } },
+  },
+};
+
+const getVisiblePages = (current, total) => {
+  const start = Math.max(1, current - 2);
+  const end = Math.min(total, current + 2);
+  const pages = [];
+  for (let i = start; i <= end; i += 1) pages.push(i);
+  return pages;
 };
 
 const AdminBooking = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [showForm, setShowForm] = useState(false);
-  const [dateFilter, setDateFilter] = useState("Today");
+  const [dateFilter, setDateFilter] = useState("All Time");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [chartFilter, setChartFilter] = useState("Last 12 Months");
-  
-  // State for mocked dropdowns
-  const [showDateDropdown, setShowDateDropdown] = useState(false);
-  const [showChartDropdown, setShowChartDropdown] = useState(false);
-
   const rowsPerPage = 8;
 
-  const [bookings, setBookings] = useState([
-    {
-      name: "Camellia Swan",
-      code: "BKG12345",
-      pkg: "Venice Dreams",
-      duration: "6 Days / 5 Nights",
-      date: "June 25 - June 30",
-      price: "$1,500",
-      status: "confirmed",
-    },
-    {
-      name: "Raphael Goodman",
-      code: "BKG12346",
-      pkg: "Safari Adventure",
-      duration: "8 Days / 7 Nights",
-      date: "Jun 25 - Jul 2",
-      price: "$3,200",
-      status: "pending",
-    },
-    {
-      name: "Ludwig Contessa",
-      code: "BKG12347",
-      pkg: "Alpine Escape",
-      duration: "7 Days / 6 Nights",
-      date: "Jun 26 - Jul 2",
-      price: "$2,100",
-      status: "confirmed",
-    },
-    {
-      name: "Armina Raul Reyes",
-      code: "BKG12348",
-      pkg: "Caribbean Cruise",
-      duration: "10 Days / 9 Nights",
-      date: "Jun 26 - Jul 5",
-      price: "$2,800",
-      status: "cancelled",
-    },
-    {
-      name: "James Dunn",
-      code: "BKG12349",
-      pkg: "Parisian Romance",
-      duration: "5 Days / 4 Nights",
-      date: "Jun 26 - Jun 30",
-      price: "$1,200",
-      status: "confirmed",
-    },
-    {
-      name: "Hillary Grey",
-      code: "BKG12350",
-      pkg: "Tokyo Cultural Adventure",
-      duration: "7 Days / 6 Nights",
-      date: "Jun 27 - Jul 3",
-      price: "$1,800",
-      status: "confirmed",
-    },
-    {
-      name: "Lucas O’connor",
-      code: "BKG12351",
-      pkg: "Greek Island Hopping",
-      duration: "10 Days / 9 Nights",
-      date: "Jun 28 - Jul 7",
-      price: "$2,500",
-      status: "pending",
-    },
-    {
-      name: "Layla Linch",
-      code: "BKG12352",
-      pkg: "Bali Beach Escape",
-      duration: "8 Days / 7 Nights",
-      date: "Jun 29 - Jul 6",
-      price: "$1,600",
-      status: "confirmed",
-    },
-    /* Page 2 Data */
-    {
-      name: "Oliver Smith",
-      code: "BKG12353",
-      pkg: "Swiss Escape",
-      duration: "6 Days / 5 Nights",
-      date: "Jul 2 - Jul 7",
-      price: "$2,200",
-      status: "confirmed",
-    },
-    {
-      name: "Sophia Lee",
-      code: "BKG12354",
-      pkg: "Maldives Retreat",
-      duration: "5 Days / 4 Nights",
-      date: "Jul 4 - Jul 8",
-      price: "$4,500",
-      status: "pending",
-    },
-    {
-      name: "Daniel Craig",
-      code: "BKG12355",
-      pkg: "London Explorer",
-      duration: "7 Days / 6 Nights",
-      date: "Jul 6 - Jul 13",
-      price: "$3,000",
-      status: "confirmed",
-    },
-    {
-      name: "Emma Watson",
-      code: "BKG12356",
-      pkg: "Paris Delight",
-      duration: "4 Days / 3 Nights",
-      date: "Jul 8 - Jul 11",
-      price: "$1,900",
-      status: "cancelled",
-    },
-    {
-      name: "Noah Brown",
-      code: "BKG12357",
-      pkg: "Dubai Luxury",
-      duration: "6 Days / 5 Nights",
-      date: "Jul 10 - Jul 15",
-      price: "$3,800",
-      status: "confirmed",
-    },
-    {
-      name: "Ava Martinez",
-      code: "BKG12358",
-      pkg: "Rome Adventure",
-      duration: "5 Days / 4 Nights",
-      date: "Jul 12 - Jul 17",
-      price: "$2,100",
-      status: "pending",
-    },
-    {
-      name: "William King",
-      code: "BKG12359",
-      pkg: "Thailand Tour",
-      duration: "8 Days / 7 Nights",
-      date: "Jul 14 - Jul 22",
-      price: "$2,700",
-      status: "confirmed",
-    },
-    {
-      name: "Mia Taylor",
-      code: "BKG12360",
-      pkg: "Bali Escape",
-      duration: "6 Days / 5 Nights",
-      date: "Jul 18 - Jul 24",
-      price: "$1,750",
-      status: "confirmed",
-    },
-  ]);
-
-  const [formData, setFormData] = useState({
-    name: "",
-    code: "",
-    pkg: "",
-    duration: "",
-    date: "",
-    price: "",
-    status: "confirmed",
+  const [bookings, setBookings] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    totalPages: 1,
+    totalBookings: 0,
   });
+  const [stats, setStats] = useState({
+    totalBookings: 0,
+    totalParticipants: 0,
+    totalEarnings: 0,
+    topPackages: [],
+    tripsOverview: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [actionModalBooking, setActionModalBooking] = useState(null);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(rowsPerPage),
+        search,
+        dateFilter,
+        status: statusFilter,
+        paymentStatus: paymentFilter,
+      });
+      const [bookingsRes, statsRes] = await Promise.all([
+        api.get(`/bookings?${params.toString()}`),
+        api.get("/bookings/stats"),
+      ]);
 
-  const handleAddBooking = () => {
-    if (!formData.name || !formData.pkg) {
-      alert("Please fill in at least Name and Package");
-      return;
+      const bookingsPayload = bookingsRes.data || {};
+      setBookings(bookingsPayload.data || []);
+      setPagination({
+        page: bookingsPayload.page || page,
+        totalPages: bookingsPayload.totalPages || 1,
+        totalBookings: bookingsPayload.totalBookings || 0,
+      });
+      setStats(statsRes.data || {});
+    } catch (err) {
+      console.error("Failed to fetch booking data:", err);
+    } finally {
+      setLoading(false);
     }
-    const newBooking = {
-      ...formData,
-      code: formData.code || `BKG${Math.floor(Math.random() * 10000)}`, // Auto-generate code if empty
-      date: formData.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), // Default to today
-    };
-    setBookings([newBooking, ...bookings]);
-    setFormData({
-      name: "",
-      code: "",
-      pkg: "",
-      duration: "",
-      date: "",
-      price: "",
-      status: "confirmed",
-    });
-    setShowForm(false);
+  }, [page, search, dateFilter, statusFilter, paymentFilter]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const openBookingDetails = async (id) => {
+    setDetailsError("");
+    setDetailsLoading(true);
+    setSelectedBooking(null);
+    try {
+      const res = await api.get(`/bookings/details/${id}`);
+      setSelectedBooking(res.data?.data || null);
+    } catch (err) {
+      setDetailsError(err.response?.data?.message || "Failed to load booking details");
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
-  const filtered = bookings.filter(
-    (b) =>
-      b.name.toLowerCase().includes(search.toLowerCase()) ||
-      b.pkg.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  const totalPages = Math.ceil(filtered.length / rowsPerPage);
-  const paginated = filtered.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage,
-  );
-
-  const lineChart = {
-    labels: [
-      "Aug 12",
-      "Sep 15",
-      "Oct 20",
-      "Nov 5",
-      "Dec 10",
-      "Jan 15",
-      "Feb 20",
-      "Mar 25",
-      "Apr 30",
-      "May 15",
-      "Jun 20",
-      "Jul 25",
-    ],
-    datasets: [
-      {
-        label: "Done",
-        data: [
-          600, 1200, 1350, 1100, 1400, 1780, 1500, 1300, 1600, 1950, 1650, 1300,
-        ],
-        borderColor: "#3b82f6",
-        borderWidth: 3,
-        fill: true,
-        backgroundColor: (context) => {
-          const chart = context.chart;
-          const { ctx, chartArea } = chart;
-          if (!chartArea) return null;
-          const gradient = ctx.createLinearGradient(
-            0,
-            chartArea.top,
-            0,
-            chartArea.bottom,
-          );
-          gradient.addColorStop(0, "rgba(59,130,246,0.25)");
-          gradient.addColorStop(1, "rgba(59,130,246,0.02)");
-          return gradient;
-        },
-        tension: 0.5,
-        pointRadius: 0,
-      },
-      {
-        label: "Cancelled",
-        data: [400, 200, 600, 700, 500, 650, 550, 900, 650, 900, 750, 900],
-        borderColor: "#9ca3af",
-        borderWidth: 2,
-        borderDash: [6, 6],
-        tension: 0.5,
-        pointRadius: 0,
-      },
-    ],
+  const closeBookingDetails = () => {
+    setSelectedBooking(null);
+    setDetailsError("");
+    setDetailsLoading(false);
   };
 
-  const barChart = {
-    labels: ["Tokyo", "Bali", "Safari", "Greek"],
-    datasets: [
-      {
-        label: "Participants",
-        data: [650, 520, 408, 278],
-        backgroundColor: ["#2563eb", "#60a5fa", "#93c5fd", "#bfdbfe"],
-        borderRadius: 4,
-      },
-    ],
-  };
-
-  const barOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-    },
-    scales: {
-      x: {
-        grid: { display: false },
-        ticks: { font: { size: 10 } }
-      },
-      y: {
-        beginAtZero: true,
-        grid: { color: "rgba(0,0,0,0.04)" },
-        ticks: { font: { size: 10 } }
+  const runStatusAction = async (bookingId, status) => {
+    setActionLoadingId(bookingId);
+    try {
+      await api.patch(`/bookings/status/${bookingId}`, { status });
+      await fetchData();
+      if (selectedBooking?._id === bookingId) {
+        const detailsRes = await api.get(`/bookings/details/${bookingId}`);
+        setSelectedBooking(detailsRes.data?.data || null);
       }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update booking status");
+    } finally {
+      setActionLoadingId(null);
+      setActionModalBooking(null);
     }
   };
+
+  const runPaymentAction = async (bookingId, paymentStatus) => {
+    setActionLoadingId(bookingId);
+    try {
+      await api.patch(`/bookings/payment-status/${bookingId}`, { paymentStatus });
+      await fetchData();
+      if (selectedBooking?._id === bookingId) {
+        const detailsRes = await api.get(`/bookings/details/${bookingId}`);
+        setSelectedBooking(detailsRes.data?.data || null);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update payment status");
+    } finally {
+      setActionLoadingId(null);
+      setActionModalBooking(null);
+    }
+  };
+
+  const runDeleteAction = async (bookingId) => {
+    const ok = window.confirm("Delete this booking? This action cannot be undone.");
+    if (!ok) return;
+
+    setActionLoadingId(bookingId);
+    try {
+      await api.delete(`/bookings/${bookingId}`);
+      await fetchData();
+      if (selectedBooking?._id === bookingId) {
+        closeBookingDetails();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete booking");
+    } finally {
+      setActionLoadingId(null);
+      setActionModalBooking(null);
+    }
+  };
+
+  const formatDate = (date) => (date ? new Date(date).toLocaleDateString() : "N/A");
+
+  const statusTotals = useMemo(() => {
+    const summary = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+    (stats.tripsOverview || []).forEach((item) => {
+      const s = item?._id?.status;
+      if (summary[s] !== undefined) summary[s] += Number(item?.count || 0);
+    });
+    return summary;
+  }, [stats.tripsOverview]);
+
+  const lineChart = useMemo(() => {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const series = {
+      pending: Array(12).fill(0),
+      confirmed: Array(12).fill(0),
+      completed: Array(12).fill(0),
+      cancelled: Array(12).fill(0),
+    };
+
+    (stats.tripsOverview || []).forEach((item) => {
+      const month = item?._id?.month;
+      const status = item?._id?.status;
+      const count = Number(item?.count || 0);
+      if (!month || month < 1 || month > 12 || !series[status]) return;
+      series[status][month - 1] += count;
+    });
+
+    const monthsToShow = chartFilter === "Last 6 Months" ? 6 : chartFilter === "Last 30 Days" ? 1 : 12;
+    const labels = monthNames.slice(-monthsToShow);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Confirmed",
+          data: series.confirmed.slice(-monthsToShow),
+          borderColor: "#2563eb",
+          backgroundColor: "rgba(37,99,235,0.12)",
+          borderWidth: 2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+        },
+        {
+          label: "Completed",
+          data: series.completed.slice(-monthsToShow),
+          borderColor: "#16a34a",
+          borderWidth: 2,
+          tension: 0.35,
+          pointRadius: 0,
+        },
+        {
+          label: "Pending",
+          data: series.pending.slice(-monthsToShow),
+          borderColor: "#f59e0b",
+          borderWidth: 2,
+          tension: 0.35,
+          pointRadius: 0,
+        },
+        {
+          label: "Cancelled",
+          data: series.cancelled.slice(-monthsToShow),
+          borderColor: "#ef4444",
+          borderWidth: 2,
+          tension: 0.35,
+          pointRadius: 0,
+        },
+      ],
+    };
+  }, [stats.tripsOverview, chartFilter]);
+
+  const barChart = useMemo(() => {
+    const top = (stats.topPackages || []).slice(0, 6);
+    const labels = top.length ? top.map((p) => p.packageName || "Unknown") : ["No Data"];
+    const values = top.length ? top.map((p) => Number(p.totalParticipants || 0)) : [0];
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Participants",
+          data: values,
+          backgroundColor: ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe", "#dbeafe"],
+          borderRadius: 6,
+        },
+      ],
+    };
+  }, [stats.topPackages]);
+
+  const totalPages = pagination.totalPages || 1;
+  const showingFrom = bookings.length ? (page - 1) * rowsPerPage + 1 : 0;
+  const showingTo = bookings.length ? (page - 1) * rowsPerPage + bookings.length : 0;
+  const pages = getVisiblePages(page, totalPages);
 
   return (
-    <div className="admin-booking">
-      {/* <h1 className="page-heading">Booking</h1> */}
+    <div className="booking-panel">
+      <div className="booking-panel-header">
+        <h2>Booking Management</h2>
+        <p>Live data from bookings API with backend pagination and filters.</p>
+      </div>
 
-      <div className="admin-booking-layout">
-        <div className="admin-left-section">
-          <div className="admin-booking-top">
-            <div className="admin-booking-top-card">
-              <div className="card-header-row">
-                <div className="icon blue">
-                  <FiCalendar />
-                </div>
-                <span className="card-title">Total Booking</span>
-                <FiMoreHorizontal className="more-icon" />
-              </div>
-              <h2 className="card-value">1,200</h2>
-              <div className="card-footer-row">
-                <div className="trend-container">
-                  <span className="positive">↗ +2.98%</span>
-                  <span className="trend-label">from last week</span>
-                </div>
-                <div className="spark">
-                  <Line
-                    data={{
-                      labels: [1, 2, 3, 4, 5, 6, 7],
-                      datasets: [
-                        {
-                          data: [20, 30, 25, 40, 35, 45, 60],
-                          borderColor: "#2563eb",
-                          backgroundColor: "rgba(37,99,235,0.1)",
-                          fill: true,
-                        },
-                      ],
-                    }}
-                    options={sparkOptions}
-                  />
-                </div>
-              </div>
-            </div>
+      <div className="booking-metrics-grid">
+        <div className="metric-card">
+          <span>Total Bookings</span>
+          <strong>{stats.totalBookings?.toLocaleString() || 0}</strong>
+        </div>
+        <div className="metric-card">
+          <span>Total Participants</span>
+          <strong>{stats.totalParticipants?.toLocaleString() || 0}</strong>
+        </div>
+        <div className="metric-card">
+          <span>Confirmed Earnings</span>
+          <strong>${stats.totalEarnings?.toLocaleString() || 0}</strong>
+        </div>
+        <div className="metric-card">
+          <span>Pending / Cancelled</span>
+          <strong>{statusTotals.pending} / {statusTotals.cancelled}</strong>
+        </div>
+      </div>
 
-            <div className="admin-booking-top-card">
-              <div className="card-header-row">
-                <div className="icon sky">
-                  <FiUsers />
-                </div>
-                <span className="card-title">Total Participants</span>
-                <FiMoreHorizontal className="more-icon" />
-              </div>
-              <h2 className="card-value">2,845</h2>
-              <div className="card-footer-row">
-                <div className="trend-container">
-                  <span className="negative">↘ -1.45%</span>
-                  <span className="trend-label">from last week</span>
-                </div>
-                <div className="spark">
-                  <Line
-                    data={{
-                      labels: [1, 2, 3, 4, 5, 6, 7],
-                      datasets: [
-                        {
-                          data: [60, 55, 50, 48, 45, 40, 38],
-                          borderColor: "#ef4444",
-                          backgroundColor: "rgba(239,68,68,0.1)",
-                          fill: true,
-                        },
-                      ],
-                    }}
-                    options={sparkOptions}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="admin-booking-top-card">
-              <div className="card-header-row">
-                <div className="icon blue">
-                  <FiDollarSign />
-                </div>
-                <span className="card-title">Total Earnings</span>
-                <FiMoreHorizontal className="more-icon" />
-              </div>
-              <h2 className="card-value">$14,795</h2>
-              <div className="card-footer-row">
-                <div className="trend-container">
-                  <span className="positive">↗ +3.75%</span>
-                  <span className="trend-label">from last week</span>
-                </div>
-                <div className="spark">
-                  <Line
-                    data={{
-                      labels: [1, 2, 3, 4, 5, 6, 7],
-                      datasets: [
-                        {
-                          data: [30, 35, 32, 40, 42, 50, 55],
-                          borderColor: "#2563eb",
-                          backgroundColor: "rgba(37,99,235,0.1)",
-                          fill: true,
-                        },
-                      ],
-                    }}
-                    options={sparkOptions}
-                  />
-                </div>
-              </div>
-            </div>
+      <div className="booking-charts-grid">
+        <div className="chart-card">
+          <div className="chart-card-header">
+            <h4>Trips Overview</h4>
+            <select value={chartFilter} onChange={(e) => setChartFilter(e.target.value)}>
+              <option>Last 12 Months</option>
+              <option>Last 6 Months</option>
+              <option>Last 30 Days</option>
+            </select>
           </div>
-
-          <div className="admin-booking-line">
-            <div className="admin-booking-line-header">
-              <h4>Trips Overview</h4>
-              <div className="chart-filter-wrapper-blue">
-                <div 
-                  className="blue-btn-mock" 
-                  onClick={() => setShowChartDropdown(!showChartDropdown)}
-                  style={{ position: 'relative' }}
-                >
-                  {chartFilter} <span className="arrow">∨</span>
-                  {showChartDropdown && (
-                    <div style={{
-                      position: 'absolute', top: '100%', right: 0, background: 'white', 
-                      color: 'black', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', 
-                      borderRadius: '8px', overflow: 'hidden', zIndex: 10, minWidth: '120px'
-                    }}>
-                      {['Last 12 Months', 'Last 6 Months', 'Last 30 Days'].map(opt => (
-                        <div 
-                          key={opt}
-                          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '12px' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setChartFilter(opt);
-                            setShowChartDropdown(false);
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          {opt}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="overview-chart">
-              <Line data={lineChart} options={overviewOptions} />
-            </div>
+          <div className="chart-wrap">
+            <Line data={lineChart} options={overviewOptions} />
           </div>
+        </div>
 
-          <div className="admin-booking-donut">
-            <div className="donut-header-row">
-              <h4>Top Packages</h4>
-              <FiMoreHorizontal className="more-icon" />
-            </div>
-            {/* Switched to Bar Chart */}
-            <div className="donut-chart" style={{ width: '100%', height: '220px', margin: 0 }}>
-              <Bar data={barChart} options={barOptions} />
-            </div>
+        <div className="chart-card">
+          <div className="chart-card-header">
+            <h4>Top Packages</h4>
+          </div>
+          <div className="chart-wrap">
+            <Bar data={barChart} options={barOptions} />
           </div>
         </div>
       </div>
 
-      {/* BOOKING FORM & TABLE */}
-      <div className="admin-booking-table">
-        <div className="admin-booking-table-header">
-          <h4>Bookings</h4>
-          <div className="booking-actions">
-            <div className="admin-booking-search">
-              <FiSearch />
-              <input
-                placeholder="Search name, package, etc"
-                value={search}
+      <div className="booking-table-card">
+        <div className="booking-toolbar">
+          <div className="search-box">
+            <FiSearch />
+            <input
+              placeholder="Search traveler, package, booking code"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          <div className="filters-row">
+            <label>
+              <FiCalendar />
+              <select
+                value={dateFilter}
                 onChange={(e) => {
-                  setSearch(e.target.value);
+                  setDateFilter(e.target.value);
                   setPage(1);
                 }}
-              />
-            </div>
-            <div 
-              className="date-filter-btn" 
-              onClick={() => setShowDateDropdown(!showDateDropdown)}
-              style={{ position: 'relative' }}
-            >
-               <FiCalendar className="cal-icon" /> {dateFilter} <span className="arrow">∨</span>
-               {showDateDropdown && (
-                    <div style={{
-                      position: 'absolute', top: '100%', right: 0, background: 'white', 
-                      color: 'black', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', 
-                      borderRadius: '8px', overflow: 'hidden', zIndex: 10, minWidth: '120px'
-                    }}>
-                      {['Today', 'This Week', 'This Month'].map(opt => (
-                        <div 
-                          key={opt}
-                          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '12px' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDateFilter(opt);
-                            setShowDateDropdown(false);
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          {opt}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-            </div>
-            <button className="add-btn" onClick={() => setShowForm(!showForm)}>
-              <FiPlus /> Add Booking
-            </button>
+              >
+                <option>All Time</option>
+                <option>Today</option>
+                <option>This Week</option>
+                <option>This Month</option>
+              </select>
+            </label>
+
+            <label>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+
+            <label>
+              <select
+                value={paymentFilter}
+                onChange={(e) => {
+                  setPaymentFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">All Payments</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </label>
           </div>
         </div>
 
-        {showForm && (
-          <div className="booking-form" style={{ 
-            marginBottom: '20px', padding: '16px', background: '#f9f9f9', 
-            borderRadius: '8px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' 
-          }}>
-            <input 
-              name="name" value={formData.name} onChange={handleInputChange} 
-              placeholder="Customer Name" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} 
-            />
-            <input 
-              name="code" value={formData.code} onChange={handleInputChange} 
-              placeholder="Booking Code (Auto)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} 
-            />
-            <input 
-              name="pkg" value={formData.pkg} onChange={handleInputChange} 
-              placeholder="Package" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} 
-            />
-            <input 
-              name="duration" value={formData.duration} onChange={handleInputChange} 
-              placeholder="Duration" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} 
-            />
-            <input 
-              name="date" value={formData.date} onChange={handleInputChange} 
-              placeholder="Date (e.g. Jun 25)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} 
-            />
-            <input 
-              name="price" value={formData.price} onChange={handleInputChange} 
-              placeholder="Price (e.g. $1,500)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} 
-            />
-            <select 
-              name="status" value={formData.status} onChange={handleInputChange} 
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            >
-              <option value="confirmed">confirmed</option>
-              <option value="pending">pending</option>
-              <option value="cancelled">cancelled</option>
-            </select>
-            <button 
-              onClick={handleAddBooking}
-              style={{ padding: '8px', borderRadius: '4px', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer', fontWeight: 500 }}
-            >
-              Save Booking
-            </button>
-          </div>
-        )}
-
-        <table>
-          <thead>
-            <tr>
-              <th>Name ↕</th>
-              <th>Booking Code ↕</th>
-              <th>Package ↕</th>
-              <th>Duration ↕</th>
-              <th>Date ↕</th>
-              <th>Price ↕</th>
-              <th>Status ↕</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.map((b, i) => (
-              <tr key={i}>
-                <td>{b.name}</td>
-                <td>{b.code}</td>
-                <td>{b.pkg}</td>
-                <td>{b.duration}</td>
-                <td>{b.date}</td>
-                <td>{b.price}</td>
-                <td>
-                  <span className={`status ${b.status}`}>{b.status === 'confirmed' ? 'Confirmed' : b.status === 'pending' ? 'Pending' : 'Cancelled'}</span>
-                </td>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Traveler</th>
+                <th>Code</th>
+                <th>Package</th>
+                <th>Start</th>
+                <th>Participants</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Payment</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="9">Loading bookings...</td>
+                </tr>
+              ) : bookings.length === 0 ? (
+                <tr>
+                  <td colSpan="9">No bookings found.</td>
+                </tr>
+              ) : (
+                bookings.map((b) => (
+                  <tr key={b._id}>
+                    <td>{b.travelerName || "N/A"}</td>
+                    <td>{b.bookingCode || "N/A"}</td>
+                    <td>{b.package?.title || "N/A"}</td>
+                    <td>{formatDate(b.startDate)}</td>
+                    <td>{b.participants || 0}</td>
+                    <td>${(b.finalPrice || b.price || 0).toLocaleString()}</td>
+                    <td><span className={`status-chip ${b.status}`}>{b.status}</span></td>
+                    <td><span className={`payment-chip ${b.paymentStatus}`}>{b.paymentStatus}</span></td>
+                    <td>
+                      <div className="bk-action-cell">
+                        <button type="button" className="view-btn" onClick={() => openBookingDetails(b._id)}>
+                          <FiEye /> View
+                        </button>
+                        <button
+                          type="button"
+                          className="bk-action-menu-btn"
+                          disabled={actionLoadingId === b._id}
+                          onClick={() => setActionModalBooking(b)}
+                        >
+                          Action
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-        {/* PAGINATION LOGIC REMAINS IDENTICAL */}
-        <div className="pagination-container">
+        <div className="pagination-row">
           <div className="pagination-info">
-            Showing <b>{rowsPerPage}</b> out of <b>{filtered.length}</b>
+            Showing <b>{showingFrom}-{showingTo}</b> of <b>{pagination.totalBookings}</b>
           </div>
-          <div className="admin-booking-pagination">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)}>
+          <div className="pagination-controls">
+            <button className="nav-btn" disabled={page === 1} onClick={() => setPage(page - 1)}>
               Previous
             </button>
-            <button
-              className={page === 1 ? "active" : ""}
-              onClick={() => setPage(1)}
-            >
-              1
-            </button>
-            <button
-              className={page === 2 ? "active" : ""}
-              onClick={() => setPage(2)}
-            >
-              2
-            </button>
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage(page + 1)}
-            >
+            {pages.map((n) => (
+              <button key={n} className={`page-btn ${page === n ? "active" : ""}`} onClick={() => setPage(n)}>
+                {n}
+              </button>
+            ))}
+            <button className="nav-btn" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
               Next
             </button>
           </div>
         </div>
       </div>
+
+      {actionModalBooking && (
+        <div className="action-modal-overlay" onClick={() => setActionModalBooking(null)}>
+          <div className="action-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="action-modal-head">
+              <h4>Booking Actions</h4>
+              <button type="button" onClick={() => setActionModalBooking(null)}>
+                <FiX />
+              </button>
+            </div>
+            <p className="action-modal-sub">
+              {actionModalBooking.travelerName} ({actionModalBooking.bookingCode})
+            </p>
+            <div className="action-modal-grid">
+              <button type="button" onClick={() => runStatusAction(actionModalBooking._id, "confirmed")}>
+                Mark Confirmed
+              </button>
+              <button type="button" onClick={() => runStatusAction(actionModalBooking._id, "completed")}>
+                Mark Completed
+              </button>
+              <button type="button" onClick={() => runStatusAction(actionModalBooking._id, "cancelled")}>
+                Cancel Booking
+              </button>
+              <button type="button" onClick={() => runPaymentAction(actionModalBooking._id, "paid")}>
+                Mark Paid
+              </button>
+              <button type="button" onClick={() => runPaymentAction(actionModalBooking._id, "refunded")}>
+                Mark Refunded
+              </button>
+              <button type="button" className="danger-action" onClick={() => runDeleteAction(actionModalBooking._id)}>
+                Delete Booking
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(detailsLoading || detailsError || selectedBooking) && (
+        <div className="details-overlay" onClick={closeBookingDetails}>
+          <div className="details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="details-head">
+              <h4>Booking Details</h4>
+              <button type="button" onClick={closeBookingDetails}>
+                <FiX />
+              </button>
+            </div>
+
+            {detailsLoading && <p className="details-state">Loading booking details...</p>}
+            {detailsError && !detailsLoading && <p className="details-state error">{detailsError}</p>}
+
+            {!detailsLoading && !detailsError && selectedBooking && (
+              <div className="details-grid">
+                <div><span>Booking Code</span><strong>{selectedBooking.bookingCode || "N/A"}</strong></div>
+                <div><span>Traveler</span><strong>{selectedBooking.travelerName || "N/A"}</strong></div>
+                <div><span>Status</span><strong>{selectedBooking.status || "N/A"}</strong></div>
+                <div><span>Payment</span><strong>{selectedBooking.paymentStatus || "N/A"}</strong></div>
+                <div><span>Package</span><strong>{selectedBooking.package?.title || "N/A"}</strong></div>
+                <div><span>Destination</span><strong>{selectedBooking.package?.destination || "N/A"}</strong></div>
+                <div><span>Participants</span><strong>{selectedBooking.participants || 0}</strong></div>
+                <div><span>Duration</span><strong>{selectedBooking.duration || "N/A"}</strong></div>
+                <div><span>Start Date</span><strong>{formatDate(selectedBooking.startDate)}</strong></div>
+                <div><span>End Date</span><strong>{formatDate(selectedBooking.endDate)}</strong></div>
+                <div><span>Price</span><strong>${(selectedBooking.price || 0).toLocaleString()}</strong></div>
+                <div><span>Final Price</span><strong>${(selectedBooking.finalPrice || selectedBooking.price || 0).toLocaleString()}</strong></div>
+                <div><span>Email</span><strong>{selectedBooking.user?.email || "N/A"}</strong></div>
+                <div><span>Phone</span><strong>{selectedBooking.user?.phone || "N/A"}</strong></div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

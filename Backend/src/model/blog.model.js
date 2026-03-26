@@ -115,7 +115,7 @@ blogSchema.index({ is_featured: 1 });
 blogSchema.index({ view_count: -1 });
 blogSchema.index({ 'tags': 1 });
 
-blogSchema.pre('save', function (next) {
+blogSchema.pre('save', function () {
   if (this.isModified('title')) {
     this.slug = slugify(this.title, {
       lower: true,
@@ -126,8 +126,6 @@ blogSchema.pre('save', function (next) {
   if (this.isModified('status') && this.status === POST_STATUS.PUBLISHED && !this.published_at) {
     this.published_at = new Date();
   }
-
-  next();
 });
 
 blogSchema.virtual('url').get(function () {
@@ -146,3 +144,4 @@ blogSchema.methods.incrementViewCount = async function () {
   await this.save({ validateBeforeSave: false });
 };
 export const Blog = mongoose.model('Blog', blogSchema)
+

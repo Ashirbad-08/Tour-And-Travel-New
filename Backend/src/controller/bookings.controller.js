@@ -150,46 +150,68 @@ export const getAllBookings = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 8;
-    const search = req.query.search || "";
+    const search = (req.query.search || "").trim();
+    const dateFilter = (req.query.dateFilter || "All Time").trim();
+    const status = (req.query.status || "").trim();
+    const paymentStatus = (req.query.paymentStatus || "").trim();
 
     let query = {};
 
     if (search) {
-
       if (search.startsWith("BKG")) {
-
-        // Exact match only
-        const booking = await Booking.findOne({ bookingCode: search });
-
-        if (!booking) {
-          return res.status(400).json({
-            success: false,
-            message: "Invalid or incomplete booking code"
-          });
-        }
-
-        return res.json({
-          success: true,
-          page: 1,
-          limit: 1,
-          totalPages: 1,
-          totalBookings: 1,
-          data: [booking]
-        });
-
+        // Booking code exact/starts-with search
+        query.bookingCode = { $regex: `^${search}`, $options: "i" };
       } else {
+        const matchingPackages = await Package.find({
+          title: { $regex: search, $options: "i" }
+        }).select("_id");
+
         query = {
           $or: [
             { travelerName: { $regex: search, $options: "i" } },
-            { packageName: { $regex: search, $options: "i" } }
+            { package: { $in: matchingPackages.map((p) => p._id) } }
           ]
         };
       }
     }
 
+    if (dateFilter && dateFilter !== "All Time") {
+      const now = new Date();
+      const from = new Date(now);
+      const to = new Date(now);
+      from.setHours(0, 0, 0, 0);
+      to.setHours(0, 0, 0, 0);
+
+      if (dateFilter === "Today") {
+        to.setDate(to.getDate() + 1);
+      } else if (dateFilter === "This Week") {
+        // Week starts on Monday
+        const day = from.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+        const diffToMonday = day === 0 ? 6 : day - 1;
+        from.setDate(from.getDate() - diffToMonday);
+        to.setTime(from.getTime());
+        to.setDate(to.getDate() + 7);
+      } else if (dateFilter === "This Month") {
+        from.setDate(1);
+        to.setMonth(from.getMonth() + 1, 1);
+      }
+
+      // Filter by trip start date within the selected range
+      query.startDate = { $gte: from, $lt: to };
+    }
+
+    if (status && status !== "all") {
+      query.status = status;
+    }
+
+    if (paymentStatus && paymentStatus !== "all") {
+      query.paymentStatus = paymentStatus;
+    }
+
     const total = await Booking.countDocuments(query);
 
     const bookings = await Booking.find(query)
+      .populate("package", "title destination")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
@@ -200,11 +222,40 @@ export const getAllBookings = async (req, res) => {
       limit,
       totalPages: Math.ceil(total / limit),
       totalBookings: total,
+      dateFilter,
+      status: status || "all",
+      paymentStatus: paymentStatus || "all",
       data: bookings
     });
 
   } catch (error) {
     res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ADMIN GET BOOKING DETAILS ---------------------------------------------------
+export const getBookingDetails = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate("package", "title destination location duration price category")
+      .populate("user", "name email phone");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: booking
+    });
+  } catch (error) {
+    return res.status(500).json({
       success: false,
       message: error.message
     });
@@ -443,9 +494,31 @@ export const getBookingStats = async (req, res) => {
     const topPackages = await Booking.aggregate([
       {
         $group: {
-          _id: "$packageName",
+          _id: "$package",
           totalBookings: { $sum: 1 },
           totalParticipants: { $sum: "$participants" }
+        }
+      },
+      {
+        $lookup: {
+          from: "packages",
+          localField: "_id",
+          foreignField: "_id",
+          as: "packageInfo"
+        }
+      },
+      {
+        $unwind: {
+          path: "$packageInfo",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          packageName: { $ifNull: ["$packageInfo.title", "Unknown Package"] },
+          totalBookings: 1,
+          totalParticipants: 1
         }
       },
       { $sort: { totalParticipants: -1 } },

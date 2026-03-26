@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Search,
   Calendar,
@@ -14,119 +14,12 @@ import {
   MoreVertical,
   Trash2,
 } from "lucide-react";
+import api from "../utils/api";
 import "../styles/Gallery.css";
 
 const TravelGalleryPanel = () => {
-  const [packages, setPackages] = useState([
-    {
-      id: 1,
-      title: "Alpine Escape",
-      location: "Swiss Alps, Switzerland",
-      image: "/images/alpine.jpg",
-      images: ["/images/alpine.jpg"],
-      date: "2028-06-01",
-      category: "Mountain",
-    },
-    {
-      id: 2,
-      title: "Bali Beach Escape",
-      location: "Bali, Indonesia",
-      image: "/images/bali.jpg",
-      images: ["/images/bali.jpg"],
-      date: "2028-06-15",
-      category: "Beach",
-    },
-    {
-      id: 3,
-      title: "Caribbean Cruise",
-      location: "Caribbean Islands",
-      image: "/images/caribbean.jpg",
-      images: ["/images/caribbean.jpg"],
-      date: "2028-07-01",
-      category: "Cruise",
-    },
-    {
-      id: 4,
-      title: "Greek Island Hopping",
-      location: "Santorini, Greece",
-      image: "/images/greek.jpg",
-      images: ["/images/greek.jpg"],
-      date: "2028-06-20",
-      category: "Island",
-    },
-    {
-      id: 5,
-      title: "New York City Highlights",
-      location: "New York, USA",
-      image: "/images/nework.jpg",
-      images: ["/images/nework.jpg"],
-      date: "2028-05-15",
-      category: "City",
-    },
-    {
-      id: 6,
-      title: "Parisian Romance",
-      location: "Paris, France",
-      image: "/images/paris.jpg",
-      images: ["/images/paris.jpg"],
-      date: "2028-08-01",
-      category: "City",
-    },
-    {
-      id: 7,
-      title: "Safari Adventure",
-      location: "Serengeti, Tanzania",
-      image: "/images/safari.jpg",
-      images: ["/images/safari.jpg"],
-      date: "2028-09-10",
-      category: "Safari",
-    },
-    {
-      id: 8,
-      title: "Seoul Cultural Exploration",
-      location: "Seoul, South Korea",
-      image: "/images/seoul.jpg",
-      images: ["/images/seoul.jpg"],
-      date: "2028-10-05",
-      category: "Cultural",
-    },
-    {
-      id: 9,
-      title: "Sydney Explorer",
-      location: "Sydney, Australia",
-      image: "/images/sydney.jpg",
-      images: ["/images/sydney.jpg"],
-      date: "2028-11-12",
-      category: "City",
-    },
-    {
-      id: 10,
-      title: "Tokyo Cultural Adventure",
-      location: "Tokyo, Japan",
-      image: "/images/tokyo.jpg",
-      images: ["/images/tokyo.jpg"],
-      date: "2028-12-01",
-      category: "Cultural",
-    },
-    {
-      id: 11,
-      title: "Tropical Paradise Retreat",
-      location: "Maldives",
-      image: "/images/tropical.jpg",
-      images: ["/images/tropical.jpg"],
-      date: "2028-06-25",
-      category: "Beach",
-    },
-    {
-      id: 12,
-      title: "Venice Dreams",
-      location: "Venice, Italy",
-      image: "/images/venice.jpg",
-      images: ["/images/venice.jpg"],
-      date: "2028-07-15",
-      category: "City",
-    },
-  ]);
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Packages");
@@ -146,6 +39,11 @@ const TravelGalleryPanel = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPackage, setEditingPackage] = useState(null);
 
+  // Track raw File objects for upload
+  const [newCoverFile, setNewCoverFile] = useState(null);
+  const [newAdditionalFiles, setNewAdditionalFiles] = useState([]);
+  const [editFiles, setEditFiles] = useState([]);
+
   const [newPackage, setNewPackage] = useState({
     title: "",
     location: "",
@@ -154,6 +52,35 @@ const TravelGalleryPanel = () => {
     image: "",
     images: [],
   });
+
+  // Fetch gallery from backend API
+  const fetchGallery = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/gallery', { params: { limit: 100 } });
+      const data = res.data?.data || [];
+      // Map backend shape to frontend shape
+      const mapped = data.map((item) => ({
+        id: item._id,
+        title: item.title || "Untitled",
+        location: item.location || "Unknown",
+        image: item.imageUrls?.[0] || "",
+        images: item.imageUrls || [],
+        date: item.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+        category: "All", // Backend doesn't have categories yet
+        description: item.description || "",
+      }));
+      setPackages(mapped);
+    } catch (err) {
+      console.error('Failed to fetch gallery:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGallery();
+  }, [fetchGallery]);
 
   const filteredPackages = useMemo(() => {
     let filtered = [...packages];
@@ -216,39 +143,90 @@ const TravelGalleryPanel = () => {
     setShowQuickView(true);
   };
 
-  const handleAddPackage = (e) => {
+  const handleAddPackage = async (e) => {
     e.preventDefault();
-    // Combine cover image with additional images - cover image first
-    const allImages = [newPackage.image, ...(newPackage.images || [])];
-    const packageToAdd = {
-      id: packages.length + 1,
-      ...newPackage,
-      images: allImages,
-    };
-    setPackages([...packages, packageToAdd]);
-    setShowAddModal(false);
-    setNewPackage({
-      title: "",
-      location: "",
-      category: "Mountain",
-      date: "",
-      image: "",
-      images: [],
-    });
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('title', newPackage.title);
+      formData.append('location', newPackage.location);
+      formData.append('category', newPackage.category);
+      formData.append('description', newPackage.title);
+
+      // Append cover file first, then additional files
+      if (newCoverFile) {
+        formData.append('images', newCoverFile);
+      }
+      newAdditionalFiles.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      await api.post('/gallery', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setShowAddModal(false);
+      setNewPackage({ title: '', location: '', category: 'Mountain', date: '', image: '', images: [] });
+      setNewCoverFile(null);
+      setNewAdditionalFiles([]);
+      await fetchGallery();
+    } catch (err) {
+      console.error('Failed to add gallery item:', err);
+      alert(err.response?.data?.message || 'Failed to add gallery item');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditPackage = (e) => {
+  const handleEditPackage = async (e) => {
     e.preventDefault();
-    setPackages(
-      packages.map((p) => (p.id === editingPackage.id ? editingPackage : p)),
-    );
-    setShowEditModal(false);
-    setEditingPackage(null);
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('title', editingPackage.title);
+      formData.append('location', editingPackage.location);
+      formData.append('category', editingPackage.category);
+      if (editingPackage.description) formData.append('description', editingPackage.description);
+
+      // Append new files if user uploaded replacements
+      editFiles.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      await api.put(`/gallery/${editingPackage.id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setShowEditModal(false);
+      setEditingPackage(null);
+      setEditFiles([]);
+      await fetchGallery();
+    } catch (err) {
+      console.error('Failed to update gallery item:', err);
+      alert(err.response?.data?.message || 'Failed to update gallery item');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePackage = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    try {
+      await api.delete(`/gallery/${id}`);
+      await fetchGallery();
+    } catch (err) {
+      console.error('Failed to delete gallery item:', err);
+    }
   };
 
   const handleImageUpload = (e, isEdit = false) => {
     const file = e.target.files[0];
     if (file) {
+      if (isEdit) {
+        setEditFiles((prev) => [file, ...prev]);
+      } else {
+        setNewCoverFile(file);
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         if (isEdit) {
@@ -264,6 +242,8 @@ const TravelGalleryPanel = () => {
   // Handle multiple images upload for ADD modal
   const handleMultipleImagesUploadForAdd = (e) => {
     const files = Array.from(e.target.files);
+    // Track raw file objects for upload
+    setNewAdditionalFiles((prev) => [...prev, ...files]);
     const newImages = [];
 
     files.forEach((file) => {
@@ -295,6 +275,8 @@ const TravelGalleryPanel = () => {
   // Handle multiple images upload
   const handleMultipleImagesUpload = (e) => {
     const files = Array.from(e.target.files);
+    // Track raw file objects for upload
+    setEditFiles((prev) => [...prev, ...files]);
     const newImages = [];
 
     files.forEach((file) => {
@@ -313,11 +295,25 @@ const TravelGalleryPanel = () => {
   };
 
   // Remove image from gallery
-  const handleRemoveImage = (index) => {
+  const handleRemoveImage = async (index) => {
+    const updatedImages = editingPackage.images.filter((_, i) => i !== index);
+
+    // Proactively update UI
     setEditingPackage((prev) => ({
       ...prev,
-      images: prev.images.filter((_, i) => i !== index),
+      images: updatedImages,
     }));
+
+    // If it's an existing item, sync with server reorder/remove
+    if (editingPackage.id) {
+      try {
+        await api.patch(`/gallery/reorder/${editingPackage.id}`, {
+          imageUrls: updatedImages
+        });
+      } catch (err) {
+        console.error("Failed to sync image removal:", err);
+      }
+    }
   };
 
   const handleEdit = (pkg) => {
@@ -532,28 +528,28 @@ const TravelGalleryPanel = () => {
         selectedCategory !== "All Packages" ||
         startDate ||
         endDate) && (
-        <div className="results-info">
-          <p>
-            Showing <strong>{filteredPackages.length}</strong>{" "}
-            {filteredPackages.length === 1 ? "package" : "packages"}
-            {searchQuery && ` matching "${searchQuery}"`}
-            {selectedCategory !== "All Packages" && ` in ${selectedCategory}`}
-            {startDate && endDate && ` from ${formatDateRange()}`}
-          </p>
-          <button
-            className="clear-filters"
-            onClick={() => {
-              setSearchQuery("");
-              setSelectedCategory("All Packages");
-              setStartDate("");
-              setEndDate("");
-              setCurrentPage(1);
-            }}
-          >
-            Clear All Filters
-          </button>
-        </div>
-      )}
+          <div className="results-info">
+            <p>
+              Showing <strong>{filteredPackages.length}</strong>{" "}
+              {filteredPackages.length === 1 ? "package" : "packages"}
+              {searchQuery && ` matching "${searchQuery}"`}
+              {selectedCategory !== "All Packages" && ` in ${selectedCategory}`}
+              {startDate && endDate && ` from ${formatDateRange()}`}
+            </p>
+            <button
+              className="clear-filters"
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedCategory("All Packages");
+                setStartDate("");
+                setEndDate("");
+                setCurrentPage(1);
+              }}
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
 
       {/* Package Gallery */}
       <div className={`package-grid ${viewMode}`}>
@@ -641,9 +637,8 @@ const TravelGalleryPanel = () => {
             {renderPaginationButtons().map((page, index) => (
               <button
                 key={index}
-                className={`pagination-btn ${
-                  page === currentPage ? "active" : ""
-                } ${page === "..." ? "dots" : ""}`}
+                className={`pagination-btn ${page === currentPage ? "active" : ""
+                  } ${page === "..." ? "dots" : ""}`}
                 onClick={() =>
                   typeof page === "number" && handlePageChange(page)
                 }

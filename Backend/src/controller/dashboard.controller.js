@@ -8,8 +8,8 @@ import User from "../model/user.model.js"
 export const getDashboardOverview = asyncHandler(async (req, res) => {
 
   const totalBookings = await Booking.countDocuments();
-
   const totalPackages = await Package.countDocuments();
+  const totalUsers = await User.countDocuments();
 
   const totalEarningsAgg = await Booking.aggregate([
     { $match: { status: "confirmed" } },
@@ -34,10 +34,11 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
     data: {
       totalBookings,
       totalPackages,
+      totalUsers,
       totalEarnings,
       totalTrips,
       tripStats: {
-        Doned: confirmedTrips,
+        Done: confirmedTrips,
         Booked: pendingTrips,
         cancelled: cancelledTrips
       }
@@ -49,20 +50,103 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
 
 export const getRevenueOverview = async (req, res) => {
   try {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
+    const period = (req.query.period || "week").toLowerCase();
+    const now = new Date();
+
+    if (period === "month") {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+
+      const monthlyData = await Booking.aggregate([
+        {
+          $match: {
+            status: "confirmed",
+            createdAt: { $gte: monthStart, $lt: monthEnd }
+          }
+        },
+        {
+          $group: {
+            _id: { $ceil: { $divide: [{ $dayOfMonth: "$createdAt" }, 7] } },
+            revenue: { $sum: "$price" }
+          }
+        }
+      ]);
+
+      const data = [1, 2, 3, 4, 5].map((w) => {
+        const found = monthlyData.find((m) => m._id === w);
+        return { week: `W${w}`, label: `W${w}`, revenue: found ? found.revenue : 0 };
+      });
+
+      const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+
+      return res.json({
+        success: true,
+        period: "month",
+        totalRevenue,
+        data,
+        currentMonth: {
+          start: monthStart,
+          end: new Date(monthEnd.getTime() - 1),
+          totalRevenue,
+          weeks: data
+        }
+      });
+    }
+
+    if (period === "year") {
+      const yearStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      const yearEnd = new Date(now.getFullYear() + 1, 0, 1, 0, 0, 0, 0);
+      const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+      const yearlyData = await Booking.aggregate([
+        {
+          $match: {
+            status: "confirmed",
+            createdAt: { $gte: yearStart, $lt: yearEnd }
+          }
+        },
+        {
+          $group: {
+            _id: { $month: "$createdAt" },
+            revenue: { $sum: "$price" }
+          }
+        }
+      ]);
+
+      const data = monthLabels.map((label, idx) => {
+        const month = idx + 1;
+        const found = yearlyData.find((m) => m._id === month);
+        return { month: label, label, revenue: found ? found.revenue : 0 };
+      });
+
+      const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+
+      return res.json({
+        success: true,
+        period: "year",
+        totalRevenue,
+        data,
+        currentYear: {
+          year: now.getFullYear(),
+          totalRevenue,
+          months: data
+        }
+      });
+    }
+
+    // Default: week
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
     const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
 
     const weeklyData = await Booking.aggregate([
       {
         $match: {
           status: "confirmed",
-          createdAt: { $gte: startOfWeek, $lte: endOfWeek }
+          createdAt: { $gte: startOfWeek, $lt: endOfWeek }
         }
       },
       {
@@ -74,35 +158,26 @@ export const getRevenueOverview = async (req, res) => {
     ]);
 
     const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    let weekResult = [];
-
-    for (let i = 0; i < 7; i++) {
-      const currentDate = new Date(startOfWeek);
-      currentDate.setDate(startOfWeek.getDate() + i);
-
-      const mongoDay = i + 1;
-
-      const found = weeklyData.find(d => d._id === mongoDay);
-
-      weekResult.push({
-        day: weekDays[i],
-        date: currentDate.toISOString().split("T")[0],
-        revenue: found ? found.revenue : 0
-      });
-    }
-
-    const weekTotal = weekResult.reduce((sum, d) => sum + d.revenue, 0);
-
-    res.json({
-      success: true,
-      currentWeek: {
-        start: startOfWeek,
-        end: endOfWeek,
-        totalRevenue: weekTotal,
-        days: weekResult
-      }
+    const data = weekDays.map((day, idx) => {
+      const mongoDay = idx + 1; // 1=Sun
+      const found = weeklyData.find((d) => d._id === mongoDay);
+      return { day, label: day, revenue: found ? found.revenue : 0 };
     });
 
+    const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+
+    return res.json({
+      success: true,
+      period: "week",
+      totalRevenue,
+      data,
+      currentWeek: {
+        start: startOfWeek,
+        end: new Date(endOfWeek.getTime() - 1),
+        totalRevenue,
+        days: data
+      }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -118,8 +193,17 @@ export const getTopDestinations = asyncHandler(async (req, res) => {
 
   const topDestinations = await Booking.aggregate([
     {
+      $lookup: {
+        from: "packages",
+        localField: "package",
+        foreignField: "_id",
+        as: "pkgInfo"
+      }
+    },
+    { $unwind: { path: "$pkgInfo", preserveNullAndEmptyArrays: true } },
+    {
       $group: {
-        _id: "$packageName",
+        _id: { $ifNull: ["$pkgInfo.title", "Unknown Package"] },
         totalBookings: { $sum: 1 }
       }
     },
@@ -138,12 +222,13 @@ export const getTopDestinations = asyncHandler(async (req, res) => {
 export const getRecentBookings = asyncHandler(async (req, res) => {
 
   const bookings = await Booking.find()
+    .populate("package", "title")
     .sort({ createdAt: -1 })
     .limit(5);
 
   const formattedBookings = bookings.map((item) => ({
     travelerName: item.travelerName,
-    packageName: item.packageName,
+    packageName: item.package?.title || "Unknown Package",
     duration: item.duration,
     startDate: item.startDate,
     endDate: item.endDate,
@@ -177,7 +262,7 @@ export const getUpcomingTrips = async (req, res) => {
       startDate: { $gte: today },
       status: { $ne: "cancelled" }
     })
-      .populate("package", "title destination price")
+      .populate("package", "title destination price thumbnailImage")
       .sort({ startDate: 1 })
       .skip(skip)
       .limit(limit);
@@ -197,127 +282,6 @@ export const getUpcomingTrips = async (req, res) => {
 };
 
 
-
-
-// export const getRecentActivity = asyncHandler(async (req, res) => {
-
-//   // Recent Bookings
-//   const recentBookings = await Booking.find()
-//     .sort({ createdAt: -1 })
-//     .limit(3);
-
-//   // Recent Cancelled Bookings
-//   const cancelledBookings = await Booking.find({ status: "cancelled" })
-//     .sort({ updatedAt: -1 })
-//     .limit(3);
-  
-//   const completedBookings = await Booking.find({status:"confirmed"})
-//     .sort({updatedAt: -1})
-//     .limit(3);
-
-
-//   const activities = [];
-
-//   // Booking Activity
-//   recentBookings.forEach((booking) => {
-//     activities.push({
-//       type: "booking",
-//       message: `${booking.travelerName} booked the ${booking.packageName} package.`,
-//       time: booking.createdAt
-//     });
-//   });
-
-//   // Cancelled Activity
-//   cancelledBookings.forEach((booking) => {
-//     activities.push({
-//       type: "cancelled",
-//       message: `${booking.travelerName} cancelled the ${booking.packageName} package.`,
-//       time: booking.updatedAt
-//     });
-//   });
-  
-//   completedBookings.forEach((booking) => {
-//       const formattedDate = new Date(booking.startDate).toLocaleDateString("en-GB", {
-//       day: "2-digit",
-//       month: "short"
-//     });
-//     activities.push({
-//       type: "confirmed",
-//       message: `${booking.travelerName} confirmed the ${booking.packageName} package for ${formattedDate}`,
-//       time: booking.updatedAt
-//     });
-//   });
-
-//   // Sort All Activities by Latest
-//   activities.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-//   res.status(200).json({
-//     success: true,
-//     count: activities.length,
-//     data: activities.slice(0, 5) // show latest 5 like UI
-//   });
-// });
-
-
-// export const getTravelPackages = asyncHandler(async (req, res) => {
-
-//   const page = Number(req.query.page) || 1;
-//   const limit = Number(req.query.limit) || 3;
-//   const skip = (page - 1) * limit;
-
-//   // 1️⃣ Get total unique package names from bookings
-//   const totalPackagesAgg = await Booking.aggregate([
-//     {
-//       $group: {
-//         _id: "$packageName"
-//       }
-//     }
-//   ]);
-
-//   const total = totalPackagesAgg.length;
-
-//   // 2️⃣ Get top booked package names
-//   const topPackages = await Booking.aggregate([
-//     {
-//       $group: {
-//         _id: "$packageName",
-//         totalBookings: { $sum: 1 }
-//       }
-//     },
-//     { $sort: { totalBookings: -1 } },
-//     { $skip: skip },
-//     { $limit: limit }
-//   ]);
-
-//   const packageNames = topPackages.map(pkg => pkg._id);
-
-//   // 3️⃣ Fetch packages using case-insensitive match
-//   const packages = await Pakage.find({
-//     title: {
-//       $in: packageNames.map(name => new RegExp(`^${name}$`, "i"))
-//     }
-//   });
-
-//   // 4️⃣ Format response
-//   const formattedPackages = packages.map(pkg => ({
-//     title: pkg.title,
-//     destination: pkg.destination,
-//     price: pkg.price,
-//     duration: `${pkg.travelPlans?.length || 0} Days`,
-//     slug: pkg.slug
-//   }));
-
-//   res.status(200).json({
-//     success: true,
-//     page,
-//     limit,
-//     totalPackages: total,
-//     totalPages: Math.ceil(total / limit),
-//     data: formattedPackages
-//   });
-
-// });
-
 export const getRecentActivity = asyncHandler(async (req, res) => {
 
   const recentBookings = await Booking.find()
@@ -329,7 +293,7 @@ export const getRecentActivity = asyncHandler(async (req, res) => {
     .populate("package", "title")
     .sort({ updatedAt: -1 })
     .limit(3);
-  
+
   const completedBookings = await Booking.find({ status: "confirmed" })
     .populate("package", "title")
     .sort({ updatedAt: -1 })
@@ -354,7 +318,7 @@ export const getRecentActivity = asyncHandler(async (req, res) => {
       time: booking.updatedAt
     });
   });
-  
+
   completedBookings.forEach((booking) => {
     const formattedDate = new Date(booking.startDate).toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -380,10 +344,10 @@ export const getRecentActivity = asyncHandler(async (req, res) => {
 export const getTravelPackages = async (req, res) => {
   try {
     const packages = await Package.find()
-      .sort({ createdAt: -1 }) 
-      .limit(3)                 
+      .sort({ createdAt: -1 })
+      .limit(3)
       .select(
-        "title location price durationDays durationNights category thumbnailImage createdAt"
+        "title destination price durationDays durationNights category thumbnailImage createdAt"
       );
 
     res.status(200).json({
@@ -401,66 +365,50 @@ export const getTravelPackages = async (req, res) => {
 };
 
 
-
-// export const bookingCalendar = async (req, res) => {
-
-//   try {
-//     const bookings = await Booking.find({ status: "confirmed" })
-//       .populate("package", "title")
-//       .select("travelerName package startDate endDate status participants price")
-//       .sort({ startDate: 1 });
-
-//     const calendarEvents = bookings.map((booking) => ({
-//       id: booking._id,
-//       title: `${booking.travelerName} - ${booking.package?.title}`,
-//       start: booking.startDate,
-//       end: booking.endDate,
-//       extendedProps: {
-//         status: booking.status,
-//         participants: booking.participants,
-//         price: booking.price,
-//       },
-//     }));
-
-//     res.status(200).json({
-//       success: true,
-//       total: calendarEvents.length,
-//       data: calendarEvents,
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
 export const bookingCalendar = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const year = Number(req.query.year) || now.getFullYear();
+  const month = Number(req.query.month) || (now.getMonth() + 1); // 1-12
 
-  const bookings = await Booking.find({ status: "confirmed" })
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid year or month. Use month as 1-12."
+    });
+  }
+
+  const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const monthEnd = new Date(year, month, 1, 0, 0, 0, 0);
+
+  const bookings = await Booking.find({
+    startDate: { $gte: monthStart, $lt: monthEnd },
+    status: { $ne: "cancelled" }
+  })
     .populate("package", "title destination")
     .select("travelerName package startDate endDate status participants price")
     .sort({ startDate: 1 });
 
   const calendarEvents = bookings.map((booking) => ({
     id: booking._id,
-    title: `${booking.travelerName} - ${
-      booking.package?.title || "Package Removed"
-    }`,
-    start: booking.startDate,
-    end: booking.endDate,
-    extendedProps: {
-      status: booking.status,
-      participants: booking.participants,
-      price: booking.price,
-      destination: booking.package?.destination || null
-    }
+    day: new Date(booking.startDate).getDate(),
+    travelerName: booking.travelerName,
+    packageTitle: booking.package?.title || "Package Removed",
+    destination: booking.package?.destination || null,
+    startDate: booking.startDate,
+    endDate: booking.endDate,
+    status: booking.status,
+    participants: booking.participants,
+    price: booking.price
   }));
+
+  const bookedDates = [...new Set(calendarEvents.map((event) => event.day))].sort((a, b) => a - b);
 
   res.status(200).json({
     success: true,
+    year,
+    month,
     total: calendarEvents.length,
+    bookedDates,
     data: calendarEvents
   });
 

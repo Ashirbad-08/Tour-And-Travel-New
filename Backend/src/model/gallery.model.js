@@ -34,12 +34,16 @@ const gallerySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    imageUrls: 
-      {
-        type: [String],
-        required: true,
-      },
-    
+    imageUrls:
+    {
+      type: [String],
+      required: true,
+    },
+
+    category: {
+      type: String,
+      default: "All",
+    },
     description: {
       type: String,
     },
@@ -48,4 +52,3 @@ const gallerySchema = new mongoose.Schema(
 );
 
 export default mongoose.model("Gallery", gallerySchema);
-

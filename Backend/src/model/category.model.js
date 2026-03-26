@@ -37,7 +37,7 @@ const categorySchema = new mongoose.Schema({
 });
 
 // Generate slug before saving
-categorySchema.pre('save', function (next) {
+categorySchema.pre('save', function () {
   if (this.isModified('name')) {
     this.slug = slugify(this.name, {
       lower: true,
@@ -45,10 +45,10 @@ categorySchema.pre('save', function (next) {
       trim: true
     });
   }
-  next();
 });
 
 // Indexes
 categorySchema.index({ is_active: 1 });
 
 export const Category = mongoose.model('Category', categorySchema);
+

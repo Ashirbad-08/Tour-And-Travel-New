@@ -2,6 +2,7 @@ import express from "express";
 import {
   createBooking,
   getAllBookings,
+  getBookingDetails,
   getMyBookings,
   updateBooking,
   updateBookingStatus,
@@ -47,6 +48,7 @@ router.delete("/remove-coupon/:id", (req, res, next) => {
 
 // ADMIN
 router.get("/", protectAdmin, getAllBookings);
+router.get("/details/:id", protectAdmin, getBookingDetails);
 router.put("/:id", protectAdmin, updateBooking);
 router.patch("/status/:id", protectAdmin, updateBookingStatus);
 router.patch("/payment-status/:id", protectAdmin, updatePaymentStatus );

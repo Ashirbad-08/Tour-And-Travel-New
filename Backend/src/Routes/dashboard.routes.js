@@ -22,6 +22,8 @@ router.get("/upcoming-trips",protectAdmin, getUpcomingTrips);
 router.get("/recent-activity",protectAdmin, getRecentActivity);
 
 router.get("/travel-packages",protectAdmin, getTravelPackages);
-router.get("/booking-calender",protectAdmin, bookingCalendar);
+router.get("/booking-calendar", protectAdmin, bookingCalendar);
+// Backward-compatible alias for existing frontend typo usage
+router.get("/booking-calender", protectAdmin, bookingCalendar);
 
 export default router;

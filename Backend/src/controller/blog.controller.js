@@ -907,6 +907,128 @@ export const incrementViewCount = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Get all categories (Admin)
+ * @route   GET /api/admin/blog/categories
+ * @access  Private (Admin/Editor)
+ */
+export const getAllCategories = asyncHandler(async (req, res) => {
+  const categories = await Category.find()
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.status(200).json(
+    ApiResponse.success(categories)
+  );
+});
+
+/**
+ * @desc    Create category (Admin)
+ * @route   POST /api/admin/blog/categories
+ * @access  Private (Admin/Editor)
+ */
+export const createCategory = asyncHandler(async (req, res) => {
+  const { name, description, is_active } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json(
+      ApiResponse.badRequest("Category name is required")
+    );
+  }
+
+  const slug = slugify(name, { lower: true, strict: true, trim: true });
+  const exists = await Category.findOne({
+    $or: [{ name: name.trim() }, { slug }]
+  });
+
+  if (exists) {
+    return res.status(409).json(
+      ApiResponse.conflict("Category already exists")
+    );
+  }
+
+  const categoryPayload = {
+    name: name.trim(),
+    description: description || "",
+    is_active: typeof is_active === "boolean" ? is_active : true
+  };
+
+  const category = await Category.create(categoryPayload);
+
+  res.status(201).json(
+    ApiResponse.created(category, "Category created successfully")
+  );
+});
+
+/**
+ * @desc    Update category (Admin)
+ * @route   PUT /api/admin/blog/categories/:id
+ * @access  Private (Admin/Editor)
+ */
+export const updateCategory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, description, is_active } = req.body;
+
+  const category = await Category.findById(id);
+  if (!category) {
+    return res.status(404).json(
+      ApiResponse.notFound("Category not found")
+    );
+  }
+
+  if (name && name.trim()) {
+    const slug = slugify(name, { lower: true, strict: true, trim: true });
+    const duplicate = await Category.findOne({
+      _id: { $ne: id },
+      $or: [{ name: name.trim() }, { slug }]
+    });
+
+    if (duplicate) {
+      return res.status(409).json(
+        ApiResponse.conflict("Another category with this name already exists")
+      );
+    }
+
+    category.name = name.trim();
+  }
+
+  if (typeof description === "string") {
+    category.description = description;
+  }
+
+  if (typeof is_active === "boolean") {
+    category.is_active = is_active;
+  }
+
+  await category.save();
+
+  res.status(200).json(
+    ApiResponse.success(category, "Category updated successfully")
+  );
+});
+
+/**
+ * @desc    Delete category (Admin)
+ * @route   DELETE /api/admin/blog/categories/:id
+ * @access  Private (Admin/Editor)
+ */
+export const deleteCategory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const category = await Category.findById(id);
+  if (!category) {
+    return res.status(404).json(
+      ApiResponse.notFound("Category not found")
+    );
+  }
+
+  await category.deleteOne();
+
+  res.status(200).json(
+    ApiResponse.success(null, "Category deleted successfully")
+  );
+});
+
+/**
  * @desc    Get blog statistics (Admin)
  * @route   GET /api/admin/blog/stats
  * @access  Private (Admin)

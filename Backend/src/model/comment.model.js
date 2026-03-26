@@ -84,9 +84,9 @@ commentSchema.index({ created_at: -1 });
 commentSchema.index({ parent_comment: 1 });
 
 // Update like count before saving
-commentSchema.pre('save', function (next) {
+commentSchema.pre('save', function () {
   this.like_count = this.likes.length;
-  next();
 });
 
 export const Comment = mongoose.model('Comment', commentSchema);
+

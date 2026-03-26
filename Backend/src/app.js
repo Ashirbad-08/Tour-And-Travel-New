@@ -23,16 +23,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 
 // Route imports
 import galleryRoutes from "./Routes/gallery.routes.js";
 import authRoutes from "./Routes/auth.routes.js";
-import adminRoutes from "./Routes/admin.routes.js";
-import adminAuthRoutes from "./Routes/adminRoutes.js";
+import adminBlogRoutes from "./Routes/adminBlog.routes.js";
+import adminAuthRoutes from "./Routes/adminAuth.routes.js";
 import guideRoutes from "./Routes/guide.routes.js";
 import bookingRoutes from "./Routes/bookings.routes.js";
 import reviewRoutes from "./Routes/review.routes.js";
@@ -55,7 +55,7 @@ import serviceRoutes from "./Routes/service.routes.js";
 //Authentication Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin/auth", adminAuthRoutes);
-app.use("/api/admin/blog", adminRoutes);
+app.use("/api/admin/blog", adminBlogRoutes);
 app.use("/api/guides", guideRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/packages", pakageRoutes);

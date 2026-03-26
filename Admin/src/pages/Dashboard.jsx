@@ -41,6 +41,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import "../styles/Dashboard.css";
+import api from "../utils/api";
 
 /* ═══════════════════════════════════════════════
    HELPERS — calendar generation & seeded random
@@ -51,16 +52,7 @@ const MONTH_NAMES = [
 ];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Deterministic pseudo-random from a seed so same date always gives same numbers
-function seededRand(seed) {
-  let h = seed | 0;
-  return () => {
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  };
-}
+
 
 function buildCalendarWeeks(year, month) {
   const firstDay = new Date(year, month, 1).getDay();
@@ -78,27 +70,7 @@ function buildCalendarWeeks(year, month) {
   return weeks;
 }
 
-/* Generate consistent daily metrics from a date seed */
-function metricsForDay(y, m, d) {
-  const seed = y * 10000 + (m + 1) * 100 + d;
-  const rng = seededRand(seed);
-  return {
-    bookings: Math.round(20 + rng() * 80),       // 20–100
-    customers: Math.round(10 + rng() * 50),       // 10–60
-    earnings: Math.round(300 + rng() * 1200),     // 300–1500
-  };
-}
 
-function sumMetrics(year, month, startDay, endDay) {
-  let bookings = 0, customers = 0, earnings = 0;
-  for (let d = startDay; d <= endDay; d++) {
-    const m = metricsForDay(year, month, d);
-    bookings += m.bookings;
-    customers += m.customers;
-    earnings += m.earnings;
-  }
-  return { bookings, customers, earnings };
-}
 
 /* ═══════════════════════════════════════════════
    COMPONENT
@@ -111,20 +83,100 @@ const Dashboard = () => {
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
   const [selectedDate, setSelectedDate] = useState(now.getDate());
-  const [analysisMode, setAnalysisMode] = useState("Day"); // Day | Week | Month
+  const [overview, setOverview] = useState(null);
+  const [revenue, setRevenue] = useState([]);
+  const [topDests, setTopDests] = useState([]);
+  const [recentBookings, setRecentBookings] = useState([]);
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [analysisMode, setAnalysisMode] = useState("Month"); // Missing state
 
-  const calWeeks = useMemo(() => buildCalendarWeeks(calYear, calMonth), [calYear, calMonth]);
+  const [upcomingTrips, setUpcomingTrips] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [travelPackages, setTravelPackages] = useState([]);
+  const [calendarBookedDates, setCalendarBookedDates] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]);
+
+  // Fetch all dashboard data
+  React.useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        const [ovRes, revRes, destRes, bookRes, actRes, tripsRes, pkgsRes, notifRes] = await Promise.all([
+          api.get("/dashboard/overview"),
+          api.get("/dashboard/revenue"),
+          api.get("/dashboard/top-destinations"),
+          api.get("/dashboard/recent-bookings"),
+          api.get("/dashboard/recent-activity"),
+          api.get("/dashboard/upcoming-trips"),
+          api.get("/dashboard/travel-packages"),
+          api.get("/notifications")
+        ]);
+
+        setOverview(ovRes.data?.data);
+        setRevenue(revRes.data?.currentWeek?.days || []);
+        setTopDests(destRes.data?.data || []);
+        setRecentBookings(bookRes.data?.data || []);
+        setRecentActivities(actRes.data?.data || []);
+        setUpcomingTrips(tripsRes.data?.data || []);
+        setTravelPackages(pkgsRes.data?.data || []);
+        setMessages(notifRes.data?.data || []);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
+  React.useEffect(() => {
+    const fetchCalendarData = async () => {
+      try {
+        const res = await api.get("/dashboard/booking-calendar", {
+          params: {
+            year: calYear,
+            month: calMonth + 1,
+          },
+        });
+
+        setCalendarBookedDates(res.data?.bookedDates || []);
+        setCalendarEvents(res.data?.data || []);
+      } catch (err) {
+        console.error("Failed to fetch booking calendar:", err);
+        setCalendarBookedDates([]);
+        setCalendarEvents([]);
+      }
+    };
+
+    fetchCalendarData();
+  }, [calYear, calMonth]);
+
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const calWeeks = useMemo(() => buildCalendarWeeks(calYear, calMonth), [calYear, calMonth]);
+
+  React.useEffect(() => {
+    if (selectedDate > daysInMonth) {
+      setSelectedDate(daysInMonth);
+    }
+  }, [daysInMonth, selectedDate]);
 
   const prevMonth = () => {
-    if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); }
-    else setCalMonth(calMonth - 1);
-    setSelectedDate(1);
+    if (calMonth === 0) {
+      setCalYear(calYear - 1);
+      setCalMonth(11);
+    } else {
+      setCalMonth(calMonth - 1);
+    }
   };
+
   const nextMonth = () => {
-    if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); }
-    else setCalMonth(calMonth + 1);
-    setSelectedDate(1);
+    if (calMonth === 11) {
+      setCalYear(calYear + 1);
+      setCalMonth(0);
+    } else {
+      setCalMonth(calMonth + 1);
+    }
   };
 
   /* ── Compute selected range ── */
@@ -142,47 +194,35 @@ const Dashboard = () => {
     return { start: 1, end: daysInMonth };
   }, [analysisMode, selectedDate, calYear, calMonth, daysInMonth]);
 
-  /* ── Dynamic stats ── */
-  const periodMetrics = useMemo(
-    () => sumMetrics(calYear, calMonth, selectedRange.start, selectedRange.end),
-    [calYear, calMonth, selectedRange]
-  );
-
-  // Previous period for comparison
-  const prevPeriodMetrics = useMemo(() => {
-    const span = selectedRange.end - selectedRange.start + 1;
-    const prevEnd = Math.max(1, selectedRange.start - 1);
-    const prevStart = Math.max(1, prevEnd - span + 1);
-    return sumMetrics(calYear, calMonth, prevStart, prevEnd);
-  }, [calYear, calMonth, selectedRange]);
-
-  const pctChange = (cur, prev) => {
-    if (prev === 0) return "+0.00%";
-    const pct = ((cur - prev) / prev * 100).toFixed(2);
-    return pct >= 0 ? `+${pct}%` : `${pct}%`;
-  };
 
   const stats = [
     {
       title: "Total Booking",
-      value: periodMetrics.bookings.toLocaleString(),
-      change: pctChange(periodMetrics.bookings, prevPeriodMetrics.bookings),
-      trend: periodMetrics.bookings >= prevPeriodMetrics.bookings ? "up" : "down",
+      value: overview?.totalBookings?.toLocaleString() || "0",
+      change: "+12%",
+      trend: "up",
       icon: <FiCalendar size={20} />, bg: "#EEF2FF", color: "#4F46E5",
     },
     {
-      title: "Total New Customers",
-      value: periodMetrics.customers.toLocaleString(),
-      change: pctChange(periodMetrics.customers, prevPeriodMetrics.customers),
-      trend: periodMetrics.customers >= prevPeriodMetrics.customers ? "up" : "down",
+      title: "Total Packages",
+      value: overview?.totalPackages?.toLocaleString() || "0",
+      change: "+5%",
+      trend: "up",
       icon: <FiUsers size={20} />, bg: "#D1FAE5", color: "#10B981",
     },
     {
       title: "Total Earnings",
-      value: `$${periodMetrics.earnings.toLocaleString()}`,
-      change: pctChange(periodMetrics.earnings, prevPeriodMetrics.earnings),
-      trend: periodMetrics.earnings >= prevPeriodMetrics.earnings ? "up" : "down",
+      value: `$${overview?.totalEarnings?.toLocaleString() || "0"}`,
+      change: "+18%",
+      trend: "up",
       icon: <FiDollarSign size={20} />, bg: "#FEF3C7", color: "#F59E0B",
+    },
+    {
+      title: "Total Users",
+      value: overview?.totalUsers?.toLocaleString() || "0",
+      change: "+8%",
+      trend: "up",
+      icon: <FiUser size={20} />, bg: "#FCE7F3", color: "#EC4899",
     },
   ];
 
@@ -195,134 +235,35 @@ const Dashboard = () => {
   }, [analysisMode, selectedDate, calMonth, calYear, selectedRange]);
 
   /* ── Revenue chart that responds to calendar ── */
-  const revenueData = useMemo(() => {
-    if (analysisMode === "Day") {
-      // Show hourly breakdown (8 AM – 6 PM)
-      const seed = calYear * 10000 + (calMonth + 1) * 100 + selectedDate;
-      const rng = seededRand(seed + 999);
-      return ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM", "4PM", "5PM", "6PM"].map(h => ({
-        day: h, revenue: Math.round(40 + rng() * 160),
-      }));
-    }
-    if (analysisMode === "Week") {
-      const days = [];
-      for (let d = selectedRange.start; d <= selectedRange.end; d++) {
-        const m = metricsForDay(calYear, calMonth, d);
-        days.push({ day: `${d}`, revenue: m.earnings });
-      }
-      return days;
-    }
-    // Month — show weekly totals
-    const weekLabels = ["Wk 1", "Wk 2", "Wk 3", "Wk 4", "Wk 5"];
-    const result = [];
-    let wk = 0;
-    for (let d = 1; d <= daysInMonth; d += 7) {
-      const end = Math.min(d + 6, daysInMonth);
-      const s = sumMetrics(calYear, calMonth, d, end);
-      result.push({ day: weekLabels[wk] || `Wk ${wk + 1}`, revenue: s.earnings });
-      wk++;
-    }
-    return result;
-  }, [analysisMode, selectedDate, calYear, calMonth, selectedRange, daysInMonth]);
-
-  const maxRevenue = Math.max(...revenueData.map(r => r.revenue), 100);
+  const maxRevenue = Math.max(...revenue.map(r => r.revenue), 100);
   const yMax = Math.ceil(maxRevenue / 200) * 200;
   const yTicks = Array.from({ length: 5 }, (_, i) => Math.round(yMax / 4 * i));
 
   /* ── Highlight dates in the selected range ── */
-  const highlightedDates = useMemo(() => {
-    const set = new Set();
-    for (let d = selectedRange.start; d <= selectedRange.end; d++) set.add(d);
-    return set;
-  }, [selectedRange]);
+  const bookedDateSet = useMemo(() => new Set(calendarBookedDates), [calendarBookedDates]);
+  const selectedDayEvents = useMemo(
+    () => calendarEvents.filter((event) => event.day === selectedDate),
+    [calendarEvents, selectedDate]
+  );
 
-  // ─── Destinations (unchanged) ───
-  const [selectedDestMonth, setSelectedDestMonth] = useState("This Month");
-  const destinationsMap = {
-    "This Month": [
-      { name: "Tokyo, Japan", pct: 35, people: "2,458 Participants", color: "#3B82F6" },
-      { name: "Sydney, Australia", pct: 28, people: "2,458 Participants", color: "#60A5FA" },
-      { name: "Paris, France", pct: 22, people: "2,458 Participants", color: "#93C5FD" },
-      { name: "Venice, Italy", pct: 15, people: "2,458 Participants", color: "#BFDBFE" },
-    ],
-    "Last Month": [
-      { name: "Paris, France", pct: 40, people: "3,100 Participants", color: "#3B82F6" },
-      { name: "Tokyo, Japan", pct: 25, people: "2,000 Participants", color: "#60A5FA" },
-      { name: "Rome, Italy", pct: 20, people: "1,800 Participants", color: "#93C5FD" },
-      { name: "Dubai, UAE", pct: 15, people: "1,200 Participants", color: "#BFDBFE" },
-    ],
-  };
-  const destinations = destinationsMap[selectedDestMonth];
-
-  /* ── Upcoming Trips ── */
-  const [upcomingTrips, setUpcomingTrips] = useState([
-    { tag: "Romantic Getaway", loc: "Paris, France", date: "5 - 10 July", users: "+9", img: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=120&h=80&fit=crop" },
-    { tag: "Cultural Exploration", loc: "Tokyo, Japan", date: "12 - 19 July", users: "+17", img: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=120&h=80&fit=crop", active: true },
-    { tag: "Adventure Tour", loc: "Sydney, Australia", date: "15 - 24 July", users: "+12", img: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=120&h=80&fit=crop" },
-    { tag: "City Highlights", loc: "New York, USA", date: "20 - 25 July", users: "+22", img: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=120&h=80&fit=crop" },
-  ]);
-  const [showTripForm, setShowTripForm] = useState(false);
-  const [tripForm, setTripForm] = useState({ tag: "", loc: "", date: "", users: "" });
-
-  const handleAddTrip = () => {
-    if (!tripForm.tag || !tripForm.loc) { alert("Please fill in Trip Name and Location"); return; }
-    const newTrip = {
-      tag: tripForm.tag,
-      loc: tripForm.loc,
-      date: tripForm.date || "TBD",
-      users: tripForm.users || "+0",
-      img: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=120&h=80&fit=crop",
-      active: false,
-    };
-    setUpcomingTrips([newTrip, ...upcomingTrips]);
-    setTripForm({ tag: "", loc: "", date: "", users: "" });
-    setShowTripForm(false);
-  };
-
-  /* ── Messages ── */
-  const messages = [
-    { name: "Europia Hotel", preview: "We are pleased to announc...", time: "9:00 AM" },
-    { name: "Global Travel Co", preview: "We have updated our comm...", time: "2:30 PM" },
-    { name: "Kalendra Umbara", preview: "Hi, I need assistance with c...", time: "9:45 AM" },
-    { name: "Osman Farooq", preview: "Hello, I had an amazing tim...", time: "10:15 AM" },
-    { name: "Mellinda Jenkins", preview: "Can you provide more deta...", time: "1:20 PM" },
-    { name: "David Hernandez", preview: "I would like to upgrade my...", time: "10:00 AM" },
-    { name: "Alexandra Green", preview: "Our company is interested i...", time: "3:45 PM" },
-  ];
-
-  /* ── Travel Packages ── */
-  const travelPackages = [
-    { title: "Cultural Exploration", dest: "Seoul, South Korea", dur: "10 Days / 9 Nights", price: "$2,100", img: "https://images.unsplash.com/photo-1534274867514-d5b47ef89ed7?w=300&h=180&fit=crop" },
-    { title: "Venice Dreams", dest: "Venice, Italy", dur: "6 Days / 5 Nights", price: "$1,500", img: "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?w=300&h=180&fit=crop" },
-    { title: "Safari Adventure", dest: "Serengeti, Tanzania", dur: "8 Days / 7 Nights", price: "$3,200", img: "https://images.unsplash.com/photo-1516426122078-c23e76319801?w=300&h=180&fit=crop" },
-  ];
+  // ─── Destinations ───
+  const destColors = ["#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#E0F2FE"];
+  const destTotal = useMemo(() => topDests.reduce((sum, d) => sum + d.totalBookings, 0), [topDests]);
+  const destinations = useMemo(() => topDests.map((d, i) => ({
+    name: d._id || "Unknown",
+    pct: destTotal > 0 ? Math.round((d.totalBookings / destTotal) * 100) : 0,
+    people: `${d.totalBookings} Bookings`,
+    color: destColors[i % destColors.length]
+  })), [topDests, destTotal]);
 
   /* ── Recent Bookings ── */
-  const bookings = [
-    { name: "Camellia Swan", pkg: "Venice Dreams", dur: "6D5N", date: "Jun 25 - Jun 30", price: "$1,500", status: "Confirmed" },
-    { name: "Raphael Goodman", pkg: "Safari Adventure", dur: "8D7N", date: "Jun 25 - Jul 2", price: "$3,200", status: "Pending" },
-    { name: "Ludwig Contessa", pkg: "Alpine Escape", dur: "7D6N", date: "Jun 26 - Jul 2", price: "$2,100", status: "Confirmed" },
-    { name: "Armina Raul Meyes", pkg: "Caribbean Cruise", dur: "10D9N", date: "Jun 26 - Jul 5", price: "$2,800", status: "Cancelled" },
-    { name: "James Dunn", pkg: "Parisian Romance", dur: "5D4N", date: "Jun 26 - Jun 30", price: "$1,200", status: "Confirmed" },
-  ];
-
-  /* ── Recent Activity ── */
-  const activities = [
-    { icon: <FiEdit />, color: "#4F46E5", text: "Alberto Cortez updated his profile and added a new payment method.", time: "9:30 AM" },
-    { icon: <FiCheckSquare />, color: "#10B981", text: "Camellia Swan booked the Venice Dreams package for June 25, 2024.", time: "10:00 AM" },
-    { icon: <FiCreditCard />, color: "#F59E0B", text: "Payment was processed for Ludwig Contessa's Alpine Escape package.", time: "9:15 AM" },
-    { icon: <FiXSquare />, color: "#EF4444", text: "Armina Raul Meyes canceled her Caribbean Cruise package.", time: "12:45 PM" },
-    { icon: <FiStar />, color: "#8B5CF6", text: "Lydia Billings submitted a review for her recent package.", time: "2:30 PM" },
-  ];
-
-  /* ── Trip breakdown for the Total Trips card ── */
   const tripBreakdown = useMemo(() => {
-    const total = periodMetrics.bookings;
-    const done = Math.round(total * 0.52);
-    const booked = Math.round(total * 0.39);
-    const cancelled = total - done - booked;
+    const total = overview?.totalTrips || 0;
+    const done = overview?.tripStats?.Done || 0;
+    const booked = overview?.tripStats?.Booked || 0;
+    const cancelled = overview?.tripStats?.cancelled || 0;
     return { total, done, booked, cancelled };
-  }, [periodMetrics]);
+  }, [overview]);
 
   return (
     <div className="db-root">
@@ -380,7 +321,7 @@ const Dashboard = () => {
               </div>
               <div className="db-chart-wrap" style={{ height: 240 }}>
                 <ResponsiveContainer>
-                  <LineChart data={revenueData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                  <LineChart data={revenue} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF2FF" />
                     <XAxis dataKey="day" tick={{ fill: "#6B7280", fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, yMax]} ticks={yTicks} tick={{ fill: "#6B7280", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -395,10 +336,6 @@ const Dashboard = () => {
             <div className="db-card db-destinations">
               <div className="db-card-head">
                 <h4>Top Destinations</h4>
-                <select className="db-select" value={selectedDestMonth} onChange={e => setSelectedDestMonth(e.target.value)}>
-                  <option>This Month</option>
-                  <option>Last Month</option>
-                </select>
               </div>
               <div className="dest-wrap">
                 <div className="dest-donut">
@@ -433,10 +370,10 @@ const Dashboard = () => {
                   <span className="trips-label">Total Trips</span>
                   <h3 className="trips-num">{tripBreakdown.total.toLocaleString()}</h3>
                 </div>
-                <div className="trips-bar">
-                  <div className="bar-done" style={{ width: "52%" }} />
-                  <div className="bar-booked" style={{ width: "39%" }} />
-                  <div className="bar-cancelled" style={{ width: "9%" }} />
+              <div className="trips-bar">
+                  <div className="bar-done" style={{ width: `${tripBreakdown.total > 0 ? Math.round((tripBreakdown.done / tripBreakdown.total) * 100) : 0}%` }} />
+                  <div className="bar-booked" style={{ width: `${tripBreakdown.total > 0 ? Math.round((tripBreakdown.booked / tripBreakdown.total) * 100) : 0}%` }} />
+                  <div className="bar-cancelled" style={{ width: `${tripBreakdown.total > 0 ? Math.round((tripBreakdown.cancelled / tripBreakdown.total) * 100) : 0}%` }} />
                 </div>
                 <div className="trips-legend">
                   <span><i className="dot done" /> Done <b>{tripBreakdown.done.toLocaleString()}</b></span>
@@ -452,15 +389,17 @@ const Dashboard = () => {
                 <span className="dots">•••</span>
               </div>
               <div className="msg-list">
-                {messages.map((m, i) => (
+                {messages.length === 0 ? (
+                  <p style={{ color: "#6B7280", fontSize: 13, padding: "10px 0" }}>No new messages.</p>
+                ) : messages.map((m, i) => (
                   <div key={i} className="msg-row">
-                    <div className="msg-avatar">{m.name.charAt(0)}</div>
+                    <div className="msg-avatar">{(m.type || "S").charAt(0).toUpperCase()}</div>
                     <div className="msg-body">
                       <div className="msg-top">
-                        <b>{m.name}</b>
-                        <span className="msg-time">{m.time}</span>
+                        <b style={{ textTransform: "capitalize" }}>{m.type || "System"} Notification</b>
+                        <span className="msg-time">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <p>{m.preview}</p>
+                      <p>{m.message}</p>
                     </div>
                   </div>
                 ))}
@@ -482,17 +421,19 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="pkg-grid">
-              {travelPackages.map((p, i) => (
+              {travelPackages.length === 0 ? (
+                <p style={{ gridColumn: "1 / -1", color: "#6B7280", textAlign: "center", padding: "20px 0" }}>No packages found.</p>
+              ) : travelPackages.map((p, i) => (
                 <div key={i} className="pkg-card">
                   <div className="pkg-img-wrap">
-                    <img src={p.img} alt={p.dest} />
+                    <img src={p.thumbnailImage || "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=300&h=180&fit=crop"} alt={p.location} />
                     <span className="pkg-tag">{p.title}</span>
                   </div>
-                  <h5>{p.dest}</h5>
-                  <span className="pkg-dur"><FiClock size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> {p.dur}</span>
+                  <h5>{p.location}</h5>
+                  <span className="pkg-dur"><FiClock size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> {p.durationDays} Days / {p.durationNights} Nights</span>
                   <div className="pkg-foot">
                     <div>
-                      <b className="pkg-price">{p.price}</b>
+                      <b className="pkg-price">${p.price?.toLocaleString()}</b>
                       <span className="per-p">per person</span>
                     </div>
                     <button className="see-detail" onClick={() => navigate("/tour-packages")}>See Detail</button>
@@ -526,14 +467,14 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((b, i) => (
+                {recentBookings.map((b, i) => (
                   <tr key={i}>
-                    <td>{b.name}</td>
-                    <td>{b.pkg}</td>
-                    <td>{b.dur}</td>
-                    <td>{b.date}</td>
-                    <td>{b.price}</td>
-                    <td><span className={`pill ${b.status.toLowerCase()}`}>{b.status}</span></td>
+                    <td>{b.travelerName}</td>
+                    <td>{b.packageName}</td>
+                    <td>{b.duration}</td>
+                    <td>{new Date(b.startDate).toLocaleDateString()}</td>
+                    <td>${b.price?.toLocaleString()}</td>
+                    <td><span className={`pill ${b.status?.toLowerCase()}`}>{b.status}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -565,7 +506,7 @@ const Dashboard = () => {
               {calWeeks.flat().map((d, i) => (
                 <div
                   key={i}
-                  className={`cal-date ${!d ? "empty" : ""} ${d && highlightedDates.has(d) ? "hl" : ""} ${d === selectedDate ? "today" : ""}`}
+                  className={`cal-date ${!d ? "empty" : ""} ${d && bookedDateSet.has(d) ? "hl" : ""} ${d === selectedDate ? "today" : ""}`}
                   onClick={() => d && setSelectedDate(d)}
                 >
                   {d || ""}
@@ -574,7 +515,7 @@ const Dashboard = () => {
             </div>
             <div className="cal-selected-info">
               <FiCalendar size={13} />
-              <span>Selected: <b>{MONTH_NAMES[calMonth]} {selectedDate}, {calYear}</b></span>
+              <span>Selected: <b>{MONTH_NAMES[calMonth]} {selectedDate}, {calYear}</b> ({selectedDayEvents.length} booking{selectedDayEvents.length !== 1 ? "s" : ""})</span>
             </div>
           </div>
 
@@ -582,49 +523,25 @@ const Dashboard = () => {
           <div className="db-card db-upcoming">
             <div className="db-card-head">
               <h4>Upcoming Trips</h4>
-              <button className="plus-btn" onClick={() => setShowTripForm(!showTripForm)}>
-                {showTripForm ? <span style={{ fontSize: 18, lineHeight: 1 }}>×</span> : <FiPlus size={16} />}
-              </button>
             </div>
 
-            {showTripForm && (
-              <div className="trip-form">
-                <input
-                  placeholder="Trip name (e.g. Beach Escape)"
-                  value={tripForm.tag}
-                  onChange={e => setTripForm({ ...tripForm, tag: e.target.value })}
-                />
-                <input
-                  placeholder="Location (e.g. Bali, Indonesia)"
-                  value={tripForm.loc}
-                  onChange={e => setTripForm({ ...tripForm, loc: e.target.value })}
-                />
-                <div className="trip-form-row">
-                  <input
-                    placeholder="Date (e.g. 5 - 10 Aug)"
-                    value={tripForm.date}
-                    onChange={e => setTripForm({ ...tripForm, date: e.target.value })}
-                  />
-                  <input
-                    placeholder="Users (e.g. +5)"
-                    value={tripForm.users}
-                    onChange={e => setTripForm({ ...tripForm, users: e.target.value })}
-                  />
-                </div>
-                <button className="trip-form-submit" onClick={handleAddTrip}>Add Trip</button>
-              </div>
-            )}
-
             <div className="trip-list">
-              {upcomingTrips.map((t, i) => (
-                <div key={i} className={`trip-item ${t.active ? "active" : ""}`}>
-                  <img src={t.img} alt={t.loc} />
+              {upcomingTrips.length === 0 ? (
+                <p style={{ color: "#6B7280", fontSize: 13, padding: "10px 0" }}>No upcoming trips.</p>
+              ) : upcomingTrips.map((t, i) => (
+                <div
+                  key={i}
+                  className={`trip-item ${t.status === "confirmed" ? "active" : ""}`}
+                  onClick={() => navigate("/bookings")}
+                  style={{ cursor: "pointer" }}
+                >
+                  <img src={t.package?.thumbnailImage ? `http://localhost:5000${t.package.thumbnailImage}` : "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=120&h=80&fit=crop"} alt={t.package?.destination || "Destination"} />
                   <div className="trip-info">
-                    <span className="trip-tag">{t.tag}</span>
-                    <h5>{t.loc}</h5>
+                    <span className="trip-tag">{t.package?.title || "Package"}</span>
+                    <h5>{t.package?.destination || "Unknown Location"}</h5>
                     <div className="trip-meta">
-                      <span><FiUser size={13} style={{ marginRight: 2, verticalAlign: 'middle' }} /> {t.users}</span>
-                      <span><FiCalendar size={13} style={{ marginRight: 2, verticalAlign: 'middle' }} /> {t.date}</span>
+                      <span><FiUser size={13} style={{ marginRight: 2, verticalAlign: 'middle' }} /> {t.participants || 1}</span>
+                      <span><FiCalendar size={13} style={{ marginRight: 2, verticalAlign: 'middle' }} /> {new Date(t.startDate).toLocaleDateString("en-GB", { day: 'numeric', month: 'short' })}</span>
                     </div>
                   </div>
                 </div>
@@ -640,12 +557,17 @@ const Dashboard = () => {
             </div>
             <p className="act-day">Today</p>
             <div className="act-list">
-              {activities.map((a, i) => (
+              {recentActivities.map((a, i) => (
                 <div key={i} className="act-row">
-                  <div className="act-icon" style={{ background: `${a.color}18`, color: a.color }}>{a.icon}</div>
+                  <div className="act-icon" style={{
+                    background: a.type === 'booking' ? '#4F46E518' : a.type === 'cancelled' ? '#EF444418' : '#10B98118',
+                    color: a.type === 'booking' ? '#4F46E5' : a.type === 'cancelled' ? '#EF4444' : '#10B981'
+                  }}>
+                    {a.type === 'booking' ? <FiPlus /> : a.type === 'cancelled' ? <FiXSquare /> : <FiCheckSquare />}
+                  </div>
                   <div className="act-body">
-                    <p>{a.text}</p>
-                    <span className="act-time">{a.time}</span>
+                    <p>{a.message}</p>
+                    <span className="act-time">{new Date(a.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
               ))}

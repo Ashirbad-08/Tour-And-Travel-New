@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line, Doughnut } from 'react-chartjs-2';
 import {
@@ -12,10 +12,11 @@ import {
   FiHome, FiExternalLink, FiUpload,
 } from 'react-icons/fi';
 import {
-  POST_STATUS, MOCK_CATEGORIES, MOCK_AUTHORS, MOCK_POSTS,
+  POST_STATUS, MOCK_CATEGORIES, MOCK_AUTHORS,
   INITIAL_FORM_DATA, INITIAL_CATEGORY_FORM,
   slugify, formatDate, simpleMarkdownToHtml
 } from './BlogData';
+import api from '../utils/api';
 import '../styles/Blog.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler);
@@ -69,11 +70,40 @@ const BlogAdminPanel = () => {
   const [deleteDialog, setDeleteDialog] = useState(null);
   const [catForm, setCatForm] = useState(INITIAL_CATEGORY_FORM);
   const [editingCat, setEditingCat] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({ siteTitle: 'Pacific Travel Blog', postsPerPage: 8, defaultStatus: POST_STATUS.DRAFT, commentsEnabled: true, moderateComments: true });
 
   const perPage = 8;
 
-  useEffect(() => { setPosts([...MOCK_POSTS]); setCategories([...MOCK_CATEGORIES]); }, []);
+  // Fetch posts from backend API
+  const fetchPosts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/blog/posts', { params: { limit: 100 } });
+      const data = res.data?.data?.posts || res.data?.posts || [];
+      setPosts(data);
+    } catch (err) {
+      console.error('Failed to fetch posts:', err);
+      showToast('Failed to load posts', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch categories from backend API
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await api.get('/admin/blog/categories');
+      setCategories(res.data?.data || []);
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPosts();
+    fetchCategories();
+  }, [fetchPosts, fetchCategories]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -175,25 +205,34 @@ const BlogAdminPanel = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.title.length < 5) { showToast('Title must be at least 5 characters', 'error'); return; }
     if (!formData.content_markdown) { showToast('Content is required', 'error'); return; }
 
-    const slug = slugify(formData.title);
-    const now = new Date();
-    const published_at = formData.status === POST_STATUS.PUBLISHED ? (selectedPost?.published_at || now) : null;
+    setLoading(true);
+    try {
+      // Generate slug from title
+      const slug = slugify(formData.title);
+      // Send selected category IDs to backend
+      const postData = { ...formData, slug };
 
-    if (selectedPost) {
-      setPosts(prev => prev.map(p => p._id === selectedPost._id ? { ...p, ...formData, slug, published_at, updatedAt: now } : p));
-      showToast('Article updated successfully!');
-    } else {
-      const newPost = { ...formData, _id: Date.now().toString(), slug, published_at, view_count: 0, images_in_content: formData.images_in_content, createdAt: now, updatedAt: now };
-      setPosts(prev => [newPost, ...prev]);
-      showToast('Article created successfully!');
+      if (selectedPost) {
+        await api.put(`/admin/blog/posts/${selectedPost._id}`, postData);
+        showToast('Article updated successfully!');
+      } else {
+        await api.post('/admin/blog/posts', postData);
+        showToast('Article created successfully!');
+      }
+      resetForm();
+      setView('posts');
+      await fetchPosts();
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to save article';
+      showToast(msg, 'error');
+    } finally {
+      setLoading(false);
     }
-    resetForm();
-    setView('posts');
   };
 
   const handleEdit = (post) => {
@@ -210,44 +249,75 @@ const BlogAdminPanel = () => {
     setView('editor');
   };
 
-  const handleDelete = (id) => {
-    setPosts(prev => prev.filter(p => p._id !== id));
-    setDeleteDialog(null);
-    setSelectedIds(prev => prev.filter(x => x !== id));
-    showToast('Article deleted successfully!');
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/admin/blog/posts/${id}`);
+      setDeleteDialog(null);
+      setSelectedIds(prev => prev.filter(x => x !== id));
+      showToast('Article deleted successfully!');
+      await fetchPosts();
+    } catch (err) {
+      showToast('Failed to delete article', 'error');
+    }
   };
 
-  const handleBulkDelete = () => {
-    setPosts(prev => prev.filter(p => !selectedIds.includes(p._id)));
-    showToast(`${selectedIds.length} articles deleted`);
-    setSelectedIds([]);
+  const handleBulkDelete = async () => {
+    try {
+      await Promise.all(selectedIds.map(id => api.delete(`/admin/blog/posts/${id}`)));
+      showToast(`${selectedIds.length} articles deleted`);
+      setSelectedIds([]);
+      await fetchPosts();
+    } catch (err) {
+      showToast('Failed to delete some articles', 'error');
+    }
   };
 
-  const handleBulkStatus = (status) => {
-    setPosts(prev => prev.map(p => selectedIds.includes(p._id) ? { ...p, status, published_at: status === POST_STATUS.PUBLISHED ? (p.published_at || new Date()) : p.published_at } : p));
-    showToast(`${selectedIds.length} articles updated to ${status}`);
-    setSelectedIds([]);
+  const handleBulkStatus = async (status) => {
+    try {
+      await Promise.all(selectedIds.map(id => api.put(`/admin/blog/posts/${id}`, { status })));
+      showToast(`${selectedIds.length} articles updated to ${status}`);
+      setSelectedIds([]);
+      await fetchPosts();
+    } catch (err) {
+      showToast('Failed to update some articles', 'error');
+    }
   };
 
   const resetForm = () => { setFormData(INITIAL_FORM_DATA); setSelectedPost(null); setTagInput(''); setPreviewMode('write'); };
 
   // Category handlers
-  const handleCatSubmit = (e) => {
+  const handleCatSubmit = async (e) => {
     e.preventDefault();
     if (!catForm.name.trim()) return;
-    const slug = catForm.slug || slugify(catForm.name);
-    if (editingCat) {
-      setCategories(prev => prev.map(c => c._id === editingCat._id ? { ...c, ...catForm, slug } : c));
-      showToast('Category updated!');
-      setEditingCat(null);
-    } else {
-      setCategories(prev => [...prev, { _id: 'c' + Date.now(), ...catForm, slug, postCount: 0 }]);
-      showToast('Category created!');
+    setLoading(true);
+    try {
+      if (editingCat) {
+        await api.put(`/admin/blog/categories/${editingCat._id}`, catForm);
+        showToast('Category updated!');
+        setEditingCat(null);
+      } else {
+        await api.post('/admin/blog/categories', catForm);
+        showToast('Category created!');
+      }
+      setCatForm(INITIAL_CATEGORY_FORM);
+      await fetchCategories();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to save category', 'error');
+    } finally {
+      setLoading(false);
     }
-    setCatForm(INITIAL_CATEGORY_FORM);
   };
 
-  const deleteCat = (id) => { setCategories(prev => prev.filter(c => c._id !== id)); showToast('Category deleted!'); };
+  const deleteCat = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    try {
+      await api.delete(`/admin/blog/categories/${id}`);
+      showToast('Category deleted!');
+      await fetchCategories();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to delete category', 'error');
+    }
+  };
 
   // Chart data
   const lineChartData = {
@@ -289,18 +359,18 @@ const BlogAdminPanel = () => {
               <p>{viewTitles[view]?.[1]}</p>
             </div>
           </div>
-          
+
           {/* Top Navigation Tabs */}
           <div className="ba-top-nav">
             {navItems.map(item => (
-              <button 
-                key={item.id} 
+              <button
+                key={item.id}
                 className={`ba-tab-item ${view === item.id || (item.id === 'editor' && view === 'editor') ? 'active' : ''}`}
-                onClick={() => { 
-                  if (item.id === 'editor') { resetForm(); } 
-                  setView(item.id); 
-                  setPage(1); 
-                  setSelectedIds([]); 
+                onClick={() => {
+                  if (item.id === 'editor') { resetForm(); }
+                  setView(item.id);
+                  setPage(1);
+                  setSelectedIds([]);
                 }}
               >
                 <span className="ba-tab-icon">{item.icon}</span>

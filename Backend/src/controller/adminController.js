@@ -5,29 +5,28 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 
 
 export const adminLogin = asyncHandler(async (req, res, next) => {
-  console.log("--- Login Attempt ---");
-  console.log("Request Body:", req.body);
+
   const { email, password } = req.body;
 
   const adminCollection = mongoose.connection.collection("admins");
 
   const admin = await adminCollection.findOne({ email });
 
-  console.log(`Login attempt for email: ${email}`);
+
 
   if (!admin) {
-    console.log(`Admin not found for email: ${email}`);
+
     return res.status(400).json({ message: "Invalid credentials" });
   }
 
   const isMatch = await bcrypt.compare(password, admin.password);
 
   if (!isMatch) {
-    console.log(`Password mismatch for admin: ${email}`);
+
     return res.status(400).json({ message: "Invalid credentials" });
   }
 
-  console.log(`Login successful for: ${email}`);
+
 
   const token = jwt.sign(
     {
@@ -38,6 +37,14 @@ export const adminLogin = asyncHandler(async (req, res, next) => {
     process.env.JWT_SECRET,
     { expiresIn: "1d" }
   );
+
+  // Set admin token cookie
+  res.cookie("adminToken", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 24 * 60 * 60 * 1000, // 1 day, matches JWT expiresIn
+  });
 
   res.status(200).json({
     message: "Admin login successful",
@@ -140,7 +147,11 @@ export const changeAdminPassword = asyncHandler(async (req, res) => {
 });
 
 export const adminLogout = (req, res) => {
-  res.clearCookie("adminToken");
+  res.clearCookie("adminToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+  });
   return res.status(200).json({
     success: true,
     message: "Admin logged out successfully"

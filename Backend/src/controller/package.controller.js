@@ -72,15 +72,15 @@ export const createPackage = asyncHandler(async (req, res) => {
     thumbnailImage,
     includes,
     excludes,
-    
+
   });
 
   await createNotification({
-  type: "package",
-  title: "New Package Added",
-  message: `Package "${newPackage.title}" added`,
-  referenceId: newPackage._id
-});
+    type: "package",
+    title: "New Package Added",
+    message: `Package "${newPackage.title}" added`,
+    referenceId: newPackage._id
+  });
   // 6️⃣ Send success response
   res.status(201).json({
     success: true,
@@ -90,7 +90,7 @@ export const createPackage = asyncHandler(async (req, res) => {
 
 });
 
- // UPDATE PACKAGE (ADMIN)
+// UPDATE PACKAGE (ADMIN)
 export const updatePackage = asyncHandler(async (req, res) => {
 
   const { id } = req.params;
@@ -189,11 +189,11 @@ export const updatePackage = asyncHandler(async (req, res) => {
   const updatedPackage = await existingPackage.save();
 
   await createNotification({
-  type: "package",
-  title: "Package Updated",
-  message: `Package "${pakage.title}" updated`,
-  referenceId: pakage._id
-});
+    type: "package",
+    title: "Package Updated",
+    message: `Package "${existingPackage.title}" updated`,
+    referenceId: existingPackage._id
+  });
 
   res.status(200).json({
     success: true,
@@ -241,7 +241,7 @@ export const deletePackage = asyncHandler(async (req, res) => {
 
 
 // GET PACKAGE BY ID (ADMIN & USER)
-export const getPackageById = asyncHandler( async (req, res, next) => {
+export const getPackageById = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
 
