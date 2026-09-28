@@ -47,7 +47,7 @@ import wishlistRoutes from "./Routes/wishlist.routes.js";
 import loyaltyRoutes from "./Routes/loyality.routes.js";
 import dashboardRoutes from "./Routes/dashboard.routes.js";
 import serviceRoutes from "./Routes/service.routes.js";
-
+import contactRoutes from "../src/Routes/contact.routes.js";
 
 
 
@@ -73,6 +73,7 @@ app.use("/api/loyalty", loyaltyRoutes);
 
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/services", serviceRoutes);
+app.use("/api/contact",contactRoutes);
 
 
 app.get('/', (req, res) => {

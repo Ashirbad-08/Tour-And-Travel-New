@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./TourDestination.css";
 import destinations from "../../data/destinations";
@@ -12,7 +12,7 @@ export default function TourDestination() {
   const [displayedTours, setDisplayedTours] = useState([]);
   const [priceFilter, setPriceFilter] = useState("All");
   const [daysFilter, setDaysFilter] = useState("All");
-  const [typeFilter, setTypeFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -34,54 +34,137 @@ export default function TourDestination() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Initialize tours from destinations data
+  const mapDestinationToTour = (dest) => {
+    const days = parseInt(dest.content?.duration?.split(" ")[0]) ||
+      parseInt(dest.duration?.split(" ")[0]) || 7;
+    const location = dest.content?.location || dest.location || dest.title || "Unknown Location";
+    const image = dest.image || "/images/default-tour.png";
+    const priceString = dest.content?.price || dest.price || "$1000";
+    const price = priceString.includes("/person") ? priceString : priceString + "/person";
+    const numericPrice = parseFloat(priceString.replace(/[^0-9.-]+/g, "")) || 0;
+    const tourType = dest.type || "specific";
+    const countryCode = dest.content?.countryCode || dest.countryCode || "WW";
+    const rating = dest.content?.rating || dest.rating || 4.5;
+    const description = dest.description || dest.content?.details || `Explore ${dest.title || "this destination"}`;
+    const categoryLabel = dest.category || tourType || "General";
+    const durationString = dest.content?.duration || dest.duration || "7 Days";
+
+    const amenities = {
+      baths: Math.floor(Math.random() * 3) + 1,
+      beds: Math.floor(Math.random() * 4) + 2,
+      near: ["Mountain", "Beach", "City", "Forest", "Lake"][Math.floor(Math.random() * 5)]
+    };
+
+    return {
+      id: dest.id,
+      image: image,
+      days: durationString.toUpperCase(),
+      title: dest.title || "Unnamed Tour",
+      location: location,
+      price: price,
+      originalPrice: numericPrice,
+      durationDays: days,
+      durationNights: Math.max(days - 1, 0),
+      rating: rating,
+      description: description,
+      type: tourType,
+      countryCode: countryCode,
+      category: categoryLabel,
+      filterCategory: tourType,
+      maxPerson: dest.content?.participants || 10,
+      meta: [
+        `\uD83D\uDEBB ${amenities.baths}`,
+        `\uD83D\uDECF ${amenities.beds}`,
+        `\uD83D\uDCCD Near ${amenities.near}`
+      ],
+      destinationData: dest
+    };
+  };
+
+  const mapPackageToTour = (pkg) => {
+    const durationDays = Number(pkg.durationDays) || 1;
+    const durationNights = Number(pkg.durationNights) || Math.max(durationDays - 1, 0);
+    const priceValue = Number(pkg.price) || 0;
+    const priceLabel = priceValue > 0
+      ? `$${priceValue.toLocaleString()}/person`
+      : "Price on request";
+
+    return {
+      id: pkg._id || pkg.id,
+      image: pkg.thumbnailImage || "/images/default-tour.png",
+      days: `${durationDays} Days / ${durationNights} Nights`.toUpperCase(),
+      title: pkg.title || "Untitled Package",
+      location: pkg.destination || "Unknown Destination",
+      price: priceLabel,
+      originalPrice: priceValue,
+      durationDays: durationDays,
+      durationNights: durationNights,
+      rating: 4.7,
+      description: pkg.description || `Experience ${pkg.title || "this tour"} with curated highlights.`,
+      type: "package",
+      countryCode: "PKG",
+      category: pkg.category || "General",
+      filterCategory: pkg.category || "General",
+      maxPerson: pkg.maxPerson || 1,
+      meta: [
+        `\uD83D\uDC65 Max ${pkg.maxPerson || 1}`,
+        `\uD83C\uDF19 ${durationNights} Nights`,
+        pkg.category || "General"
+      ],
+      includes: pkg.includes || [],
+      excludes: pkg.excludes || [],
+      source: "api"
+    };
+  };
+
+  // Initialize tours from API packages, fallback to destinations
   useEffect(() => {
-    const transformedTours = destinations.map((dest) => {
-      const days = parseInt(dest.content?.duration?.split(" ")[0]) ||
-        parseInt(dest.duration?.split(" ")[0]) || 7;
-      const location = dest.content?.location || dest.location || dest.title || "Unknown Location";
-      const image = dest.image || "/images/default-tour.png";
-      const priceString = dest.content?.price || dest.price || "$1000";
-      const price = priceString.includes("/person") ? priceString : priceString + "/person";
-      const numericPrice = parseFloat(priceString.replace(/[^0-9.-]+/g, "")) || 0;
-      const tourType = dest.type || "specific";
-      const countryCode = dest.content?.countryCode || dest.countryCode || "WW";
-      const rating = dest.content?.rating || dest.rating || 4.5;
-      const description = dest.description || dest.content?.details || `Explore ${dest.title || "this destination"}`;
-      const category = dest.category || "";
-      const durationString = dest.content?.duration || dest.duration || "7 Days";
+    let isMounted = true;
+    const controller = new AbortController();
 
-      const amenities = {
-        baths: Math.floor(Math.random() * 3) + 1,
-        beds: Math.floor(Math.random() * 4) + 2,
-        near: ["Mountain", "Beach", "City", "Forest", "Lake"][Math.floor(Math.random() * 5)]
-      };
+    const loadPackages = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch("/api/packages", { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error("Failed to fetch packages");
+        }
+        const result = await response.json();
+        const packages = Array.isArray(result?.data) ? result.data : null;
+        if (!packages) {
+          throw new Error("Invalid packages response");
+        }
+        const transformed = packages.map(mapPackageToTour);
+        if (isMounted) {
+          setTours(transformed);
+          setFilteredTours(transformed);
+          const initialDisplayCount = window.innerWidth < 768 ? 2 : 6;
+          setDisplayedTours(transformed.slice(0, initialDisplayCount));
+        }
+        return;
+      } catch (error) {
+        // Fallback handled below
+      }
 
-      return {
-        id: dest.id,
-        image: image,
-        days: durationString.toUpperCase(),
-        title: dest.title || "Unnamed Tour",
-        location: location,
-        price: price,
-        originalPrice: numericPrice,
-        durationDays: days,
-        rating: rating,
-        description: description,
-        type: tourType,
-        countryCode: countryCode,
-        category: category,
-        amenities: amenities,
-        destinationData: dest
-      };
+      const fallbackTours = destinations.map(mapDestinationToTour);
+      if (isMounted) {
+        setTours(fallbackTours);
+        setFilteredTours(fallbackTours);
+        const initialDisplayCount = window.innerWidth < 768 ? 2 : 6;
+        setDisplayedTours(fallbackTours.slice(0, initialDisplayCount));
+      }
+    };
+
+    loadPackages().finally(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
     });
 
-    setTours(transformedTours);
-    setFilteredTours(transformedTours);
-
-    const initialDisplayCount = window.innerWidth < 768 ? 2 : 6;
-    setDisplayedTours(transformedTours.slice(0, initialDisplayCount));
-    setLoading(false);
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, []);
 
   // Update displayed tours when showAll changes or window resizes
@@ -136,43 +219,45 @@ export default function TourDestination() {
       }
     }
 
-    if (typeFilter !== "All") {
-      result = result.filter(tour => tour.type === typeFilter);
+    if (categoryFilter !== "All") {
+      result = result.filter(tour => tour.filterCategory === categoryFilter);
     }
 
     setFilteredTours(result);
     setShowAll(false);
-  }, [priceFilter, daysFilter, typeFilter, tours]);
+  }, [priceFilter, daysFilter, categoryFilter, tours]);
 
   const resetFilters = () => {
     setPriceFilter("All");
     setDaysFilter("All");
-    setTypeFilter("All");
+    setCategoryFilter("All");
     setShowAll(false);
   };
 
-  // Navigate to AllDestinations with filters
-  const handleViewAllDestinations = () => {
-    const filters = {
-      price: priceFilter,
-      days: daysFilter,
-      type: typeFilter
-    };
-    navigate('/destinations', { state: { filters } });
+  const handleToggleViewAll = () => {
+    setShowAll((prev) => !prev);
+  };
+
+  const getTourLink = (tour) => {
+    if (tour.type === "package") {
+      return `/packages/${tour.id}`;
+    }
+    return `/destination/${tour.id}`;
   };
 
   const handleCardClick = (tour) => {
-    navigate(`/destination/${tour.id}`);
+    navigate(getTourLink(tour));
   };
 
   const handleViewDetails = (e, tour) => {
     e.stopPropagation();
-    navigate(`/destination/${tour.id}`);
+    navigate(getTourLink(tour));
   };
 
   const handleBookNow = (e, tour) => {
     e.stopPropagation();
-    navigate(`/destination/${tour.id}`, { state: { openBooking: true } });
+    const target = getTourLink(tour);
+    navigate(target, { state: { openBooking: true } });
   };
 
   const priceOptions = [
@@ -191,15 +276,22 @@ export default function TourDestination() {
     "Over 14 Days"
   ];
 
-  const typeOptions = [
-    "All",
-    "beaches",
-    "hiking",
-    "waterfalls",
-    "volcanoes",
-    "monuments",
-    "bucketlist"
-  ];
+  const categoryOptions = useMemo(() => {
+    const unique = new Set(
+      tours
+        .map((tour) => tour.filterCategory)
+        .filter((value) => value && value !== "General")
+    );
+    return ["All", ...Array.from(unique)];
+  }, [tours]);
+
+  const formatCategoryLabel = (value) => {
+    if (!value) return "Category";
+    return value
+      .split(/[-\s_]+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
 
   return (
     <section className="tour-section">
@@ -269,14 +361,14 @@ export default function TourDestination() {
               <div className="filter-dropdown">
                 <select
                   id="type-filter"
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
                   className="filter-select"
                 >
                   <option value="All">All Categories</option>
-                  {typeOptions.filter(t => t !== "All").map((option, index) => (
+                  {categoryOptions.filter(t => t !== "All").map((option, index) => (
                     <option key={index} value={option}>
-                      {option.charAt(0).toUpperCase() + option.slice(1)}
+                      {formatCategoryLabel(option)}
                     </option>
                   ))}
                 </select>
@@ -290,7 +382,7 @@ export default function TourDestination() {
           </div>
 
           <div className="filter-row">
-            {(priceFilter !== "All" || daysFilter !== "All" || typeFilter !== "All") && (
+            {(priceFilter !== "All" || daysFilter !== "All" || categoryFilter !== "All") && (
               <button className="reset-filters-btn" onClick={resetFilters}>
                 <svg className="reset-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
@@ -303,7 +395,7 @@ export default function TourDestination() {
       </div>
 
       {/* Active Filters Display */}
-      {(priceFilter !== "All" || daysFilter !== "All" || typeFilter !== "All") && (
+      {(priceFilter !== "All" || daysFilter !== "All" || categoryFilter !== "All") && (
         <div className="active-filters">
           <div className="active-filters-container">
             <span className="active-filters-label">Active Filters:</span>
@@ -311,19 +403,19 @@ export default function TourDestination() {
               {priceFilter !== "All" && (
                 <span className="active-filter-tag">
                   Price: {priceFilter}
-                  <button onClick={() => setPriceFilter("All")} className="remove-filter">×</button>
+                  <button onClick={() => setPriceFilter("All")} className="remove-filter">x</button>
                 </span>
               )}
               {daysFilter !== "All" && (
                 <span className="active-filter-tag">
                   Days: {daysFilter}
-                  <button onClick={() => setDaysFilter("All")} className="remove-filter">×</button>
+                  <button onClick={() => setDaysFilter("All")} className="remove-filter">x</button>
                 </span>
               )}
-              {typeFilter !== "All" && (
+              {categoryFilter !== "All" && (
                 <span className="active-filter-tag">
-                  Category: {typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}
-                  <button onClick={() => setTypeFilter("All")} className="remove-filter">×</button>
+                  Category: {formatCategoryLabel(categoryFilter)}
+                  <button onClick={() => setCategoryFilter("All")} className="remove-filter">x</button>
                 </span>
               )}
             </div>
@@ -333,7 +425,16 @@ export default function TourDestination() {
 
       {/* Tours Grid */}
       <div className="tour-grid">
-        {displayedTours.length > 0 ? (
+        {loading ? (
+          <div className="no-tours-found">
+            <svg className="no-results-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <h3>Loading tour packages</h3>
+            <p>Please wait while we fetch the latest packages.</p>
+          </div>
+        ) : displayedTours.length > 0 ? (
           displayedTours.map((tour) => (
             <div
               className="tour-card"
@@ -370,7 +471,7 @@ export default function TourDestination() {
                 </div>
                 {tour.category && tour.category !== "general" && (
                   <div className="tour-category-badge">
-                    {tour.category.split('•')[0].trim()}
+                    {tour.category}
                   </div>
                 )}
               </div>
@@ -378,15 +479,15 @@ export default function TourDestination() {
               <div className="tour-info">
                 <div className="tour-header-info">
                   <span className="tour-days">{tour.days}</span>
-                  <span className="tour-country-code">{tour.countryCode}</span>
+                  <span className="tour-country-code">{tour.category || tour.countryCode}</span>
                 </div>
                 <h3>{tour.title}</h3>
                 <p className="tour-location">{tour.location}</p>
 
                 <div className="tour-meta">
-                  <span>🛁 {tour.amenities.baths}</span>
-                  <span>🛏 {tour.amenities.beds}</span>
-                  <span>📍 Near {tour.amenities.near}</span>
+                  {tour.meta.map((item, index) => (
+                    <span key={`${tour.id}-${index}`}>{item}</span>
+                  ))}
                 </div>
 
                 <p className="tour-description">
@@ -430,8 +531,8 @@ export default function TourDestination() {
       {/* View All Button */}
       <div className="container">
         <div className="d-flex justify-content-end py-5">
-          <button className="view-all-btn" onClick={handleViewAllDestinations}>
-            View All Destinations →
+          <button className="view-all-btn" onClick={handleToggleViewAll}>
+            {showAll ? "Show Fewer Packages" : "View All Packages ->"}
           </button>
         </div>
       </div>

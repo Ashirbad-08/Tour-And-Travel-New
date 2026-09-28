@@ -9,7 +9,7 @@ import { protectAdmin } from "../middleware/authMiddleware.js";
   Router.post("/create",protectAdmin,  createPackage);
 Router.put("/:id",protectAdmin,  updatePackage);
 Router.delete("/:id",protectAdmin, deletePackage);
-Router.get("/:id",protectAdmin, getPackageById);
+Router.get("/:id", getPackageById);
 Router.get("/", getAllPackages);
 
 export default Router;

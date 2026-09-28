@@ -10,6 +10,7 @@ import Blog from './pages/Blog';
 import Contact from './pages/Contact';
 import AllDestinations from './pages/AllDestinations';
 import DestinationDetails from './pages/DestinationDetails';
+import PackageDetails from './pages/PackageDetails';
 import CategoryPage from './pages/Categorypage';
 import './App.css';
 import SelectDestination from './components/HomeComponents/SelectDestination';
@@ -32,6 +33,7 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/destinations" element={<AllDestinations />} />
             <Route path="/destination/:id" element={<DestinationDetails />} />
+            <Route path="/packages/:id" element={<PackageDetails />} />
 
             {/* Category Routes */}
             <Route path="/beaches" element={<CategoryPage />} />

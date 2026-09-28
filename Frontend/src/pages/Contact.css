@@ -214,6 +214,32 @@
   cursor: pointer;
 }
 
+.submit-btn[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.form-status {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.form-status.success {
+  background: #e9f7ef;
+  color: #1e7e34;
+  border: 1px solid #c6e9d5;
+}
+
+.form-status.error {
+  background: #fdecea;
+  color: #b02a37;
+  border: 1px solid #f5c2c7;
+}
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .contact-hero {

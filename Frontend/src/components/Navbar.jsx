@@ -121,6 +121,13 @@ const Navbar = () => {
     );
   };
 
+  const getItemLink = (item) => {
+    if (item?.type === "package") {
+      return `/packages/${item.id}`;
+    }
+    return `/destination/${item.id}`;
+  };
+
   const userProfile = {
     name: "John Traveler",
     email: "john@example.com",
@@ -618,14 +625,14 @@ const Navbar = () => {
                       className="item-image"
                       onClick={() => {
                         setWishlistOpen(false);
-                        navigate(`/destination/${item.id}`);
+                        navigate(getItemLink(item));
                       }}
                     />
                     <div className="item-details">
                       <h4
                         onClick={() => {
                           setWishlistOpen(false);
-                          navigate(`/destination/${item.id}`);
+                          navigate(getItemLink(item));
                         }}
                       >
                         {item.title || item.name}
@@ -719,14 +726,14 @@ const Navbar = () => {
                       className="item-image"
                       onClick={() => {
                         setCartOpen(false);
-                        navigate(`/destination/${item.id}`);
+                        navigate(getItemLink(item));
                       }}
                     />
                     <div className="item-details">
                       <h4
                         onClick={() => {
                           setCartOpen(false);
-                          navigate(`/destination/${item.id}`);
+                          navigate(getItemLink(item));
                         }}
                       >
                         {item.title || item.name}
