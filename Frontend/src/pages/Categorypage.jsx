@@ -2,7 +2,7 @@ import { useParams, useLocation, Link } from "react-router-dom";
 import { getGroupedDestinations } from "../data/destinations";
 import Instagram from "../components/Instagram";
 import Newsletter from "../components/Newsletter";
-import "../CSS/CategoryPage.css";
+import "../CSS/Categorypage.css";
 import ActionButtons from "../components/ActionButtons";
 import { useWishlistCart } from "../hooks/useWishlistCart";
 
