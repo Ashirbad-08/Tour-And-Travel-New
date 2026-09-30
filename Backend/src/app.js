@@ -3,14 +3,17 @@ import cors from 'cors';
 import express from 'express';
 import { errorHandler } from './utils/errorHandler.js';
 
-
+const allowedOrigins = [
+  process.env.Frontend_URL,
+  process.env.Admin_URL
+];
 const app = express();
 
 // Middleware
 app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!allowedOrigins) return callback(null, true);
     return callback(null, origin);
   },
   credentials: true,
