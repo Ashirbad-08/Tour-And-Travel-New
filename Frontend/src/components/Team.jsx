@@ -2,10 +2,10 @@ import "./Team.css";
 import { useRef } from "react";
 import useScrollAnimation from "../hooks/ScrollAnimation";
 
-import person1 from "../assets/Images/person1.jpg";
-import person2 from "../assets/Images/person2.jpg";
-import person3 from "../assets/Images/person3.jpg";
-import person4 from "../assets/Images/person4.jpg";
+import person1 from "../assets/images/person1.jpg";
+import person2 from "../assets/images/person2.jpg";
+import person3 from "../assets/images/person3.jpg";
+import person4 from "../assets/images/person4.jpg";
 
 import { FaFacebookF, FaTwitter, FaPinterestP, FaLinkedinIn } from "react-icons/fa";
 
