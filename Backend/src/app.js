@@ -3,18 +3,20 @@ import cors from 'cors';
 import express from 'express';
 import { errorHandler } from './utils/errorHandler.js';
 
+const normalizeOrigin = (origin) => origin?.replace(/\/+$/, "");
+
 const allowedOrigins = [
   process.env.Frontend_URL,
   process.env.Admin_URL,
   "http://localhost:5173",
   "http://localhost:5174"
-].filter(Boolean);
+].map(normalizeOrigin).filter(Boolean);
 const app = express();
 
 // Middleware
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
     return callback(new Error(`CORS origin not allowed: ${origin}`));
   },
   credentials: true,
