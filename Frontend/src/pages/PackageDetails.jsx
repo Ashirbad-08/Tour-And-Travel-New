@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import BookingForm from "../components/Booking/BookingForm";
+import { apiUrl } from "../utils/api";
 import "../CSS/PackageDetails.css";
 
 export default function PackageDetails() {
@@ -19,7 +20,7 @@ export default function PackageDetails() {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(`/api/packages/${id}`, { signal: controller.signal });
+        const response = await fetch(apiUrl(`packages/${id}`), { signal: controller.signal });
         if (!response.ok) {
           throw new Error("Unable to fetch package details");
         }

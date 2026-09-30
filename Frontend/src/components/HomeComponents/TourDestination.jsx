@@ -4,6 +4,7 @@ import "./TourDestination.css";
 import destinations from "../../data/destinations";
 import ActionButtons from "../ActionButtons";
 import { useWishlistCart } from "../../hooks/useWishlistCart";
+import { apiUrl } from "../../utils/api";
 
 export default function TourDestination() {
   const navigate = useNavigate();
@@ -125,7 +126,7 @@ export default function TourDestination() {
     const loadPackages = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/packages", { signal: controller.signal });
+        const response = await fetch(apiUrl("packages"), { signal: controller.signal });
         if (!response.ok) {
           throw new Error("Failed to fetch packages");
         }

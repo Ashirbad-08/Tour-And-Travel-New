@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../utils/api";
 import {
   FiMessageCircle,
   FiPhone,
@@ -16,7 +16,7 @@ import {
 import { BsPatchCheckFill } from "react-icons/bs";
 import "../styles/Guides.css";
 
-const API = "http://localhost:5000/api/guides"; // change if deployed
+const API = "/guides";
 
 function Guides() {
 
@@ -42,7 +42,7 @@ function Guides() {
 const fetchGuides = async () => {
   try {
     setLoading(true);
-    const res = await axios.get(API);
+    const res = await api.get(API);
 
     console.log("API RESPONSE:", res.data); // check backend response
 
@@ -79,10 +79,7 @@ const fetchGuides = async () => {
         formData.append("avatar", newGuide.avatar);
       }
 
-      await axios.post(API, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        withCredentials: true
-      });
+      await api.post(API, formData);
 
       setShowModal(false);
       fetchGuides();
@@ -105,10 +102,7 @@ const fetchGuides = async () => {
         formData.append("avatar", editGuide.avatar);
       }
 
-      await axios.put(`${API}/${editGuide._id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        withCredentials: true
-      });
+      await api.put(`${API}/${editGuide._id}`, formData);
 
       setShowEditModal(false);
       fetchGuides();
@@ -123,7 +117,7 @@ const fetchGuides = async () => {
     if (!window.confirm("Are you sure you want to delete?")) return;
 
     try {
-      await axios.delete(`${API}/${id}`, { withCredentials: true });
+      await api.delete(`${API}/${id}`);
       fetchGuides();
     } catch (err) {
       console.error(err);

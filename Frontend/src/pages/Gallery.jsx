@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "./Gallery.css";
+import { apiUrl } from "../utils/api";
 
 export default function Gallery() {
   const [images, setImages] = useState([]);
@@ -9,7 +10,7 @@ export default function Gallery() {
   useEffect(() => {
     const fetchGallery = async () => {
       try {
-        const res = await fetch('/api/gallery?limit=100');
+        const res = await fetch(apiUrl('gallery?limit=100'));
         const json = await res.json();
         const data = json?.data || [];
         // Flatten all imageUrls into individual gallery items

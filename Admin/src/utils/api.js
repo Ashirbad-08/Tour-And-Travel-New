@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  // This must point to the Express API, including `/api`, not to the Admin site.
+  baseURL: (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/+$/, ""),
   withCredentials: true,
 });
 

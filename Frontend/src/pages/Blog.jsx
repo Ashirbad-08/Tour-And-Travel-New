@@ -3,6 +3,7 @@ import BlogHero from "../components/BlogComponents/BlogHero";
 import BlogCard from "../components/BlogComponents/BlogCard";
 import Sidebar from "../components/BlogComponents/Sidebar";
 import "./Blog.css";
+import { apiUrl } from "../utils/api";
 
 const Blog = () => {
   const [blogData, setBlogData] = useState([]);
@@ -11,7 +12,7 @@ const Blog = () => {
   useEffect(() => {
     const fetchBlogs = async () => {
       try {
-        const res = await fetch('/api/blog/posts');
+        const res = await fetch(apiUrl('blog/posts'));
         const json = await res.json();
         const posts = json?.data?.posts || [];
         // Map backend shape to the component's expected shape

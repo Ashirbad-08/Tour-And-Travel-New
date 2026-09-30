@@ -16,7 +16,6 @@ const router = express.Router();
 
 // Public routes
 router.get('/posts', getPublishedPosts);
-router.get('/posts/:slug', getPostBySlug);
 router.get('/featured', getFeaturedPosts);
 router.get('/recent', getRecentPosts);
 router.get('/popular', getPopularPosts);
@@ -24,6 +23,7 @@ router.get('/search', searchPosts);
 router.get('/categories/:slug/posts', getPostsByCategory);
 router.get('/tags/:tag/posts', getPostsByTag);
 router.get('/archive', getArchive);
+router.get('/posts/:slug', getPostBySlug);
 
 // Interactions
 router.post('/posts/:id/view', incrementViewCount);

@@ -5,16 +5,17 @@ import { errorHandler } from './utils/errorHandler.js';
 
 const allowedOrigins = [
   process.env.Frontend_URL,
-  process.env.Admin_URL
-];
+  process.env.Admin_URL,
+  "http://localhost:5173",
+  "http://localhost:5174"
+].filter(Boolean);
 const app = express();
 
 // Middleware
 app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!allowedOrigins) return callback(null, true);
-    return callback(null, origin);
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -34,6 +35,7 @@ app.use(cookieParser());
 import galleryRoutes from "./Routes/gallery.routes.js";
 import authRoutes from "./Routes/auth.routes.js";
 import adminBlogRoutes from "./Routes/adminBlog.routes.js";
+import blogRoutes from "./Routes/blog.routes.js";
 import adminAuthRoutes from "./Routes/adminAuth.routes.js";
 import guideRoutes from "./Routes/guide.routes.js";
 import bookingRoutes from "./Routes/bookings.routes.js";
@@ -58,6 +60,7 @@ import contactRoutes from "../src/Routes/contact.routes.js";
 app.use("/api/auth", authRoutes);
 app.use("/api/admin/auth", adminAuthRoutes);
 app.use("/api/admin/blog", adminBlogRoutes);
+app.use("/api/blog", blogRoutes);
 app.use("/api/guides", guideRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/packages", pakageRoutes);
